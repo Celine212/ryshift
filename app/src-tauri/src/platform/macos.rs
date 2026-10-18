@@ -13,7 +13,7 @@ use objc2_foundation::{MainThreadMarker, NSString, NSURL};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, WebviewWindow};
+use tauri::{AppHandle, Emitter, LogicalPosition, Position, WebviewWindow};
 
 /// Above normal windows and the Dock, like a context menu.
 const POP_UP_MENU_LEVEL: isize = 101;
@@ -74,8 +74,7 @@ pub fn watch_drags(app: AppHandle) {
                     st.shown = true;
                     let (handle, paths) = (app.clone(), st.paths.clone());
                     let _ = app.run_on_main_thread(move || {
-                        let (x, y) = cursor();
-                        crate::show_wheel(&handle, paths, x, y, "drag");
+                        crate::show_wheel(&handle, paths, cursor(), "drag");
                     });
                 }
             }
@@ -114,13 +113,13 @@ pub fn present(win: &WebviewWindow, focus: bool) {
 }
 
 /// Mouse position in top-left based screen points. Must run on the main thread.
-pub fn cursor() -> (f64, f64) {
+pub fn cursor() -> Position {
     let p = NSEvent::mouseLocation();
     let height = MainThreadMarker::new()
         .and_then(|mtm| NSScreen::screens(mtm).firstObject())
         .map(|s| s.frame().size.height)
         .unwrap_or(0.0);
-    (p.x, height - p.y)
+    LogicalPosition::new(p.x, height - p.y).into()
 }
 
 const FINDER_SELECTION: &str = r#"

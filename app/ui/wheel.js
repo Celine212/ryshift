@@ -168,7 +168,7 @@ tauri.event.listen("wheel:mouseup", () => {
 });
 
 tauri.webview.getCurrentWebview().onDragDropEvent(({ payload }) => {
-  const scale = window.devicePixelRatio || 1;
+  const scale = state.drop_in_pixels ? window.devicePixelRatio || 1 : 1;
   const pos = payload.position ? { x: payload.position.x / scale, y: payload.position.y / scale } : null;
   if (payload.type === "over" || payload.type === "enter") {
     if (pos) setHot(sliceAt(pos.x, pos.y));

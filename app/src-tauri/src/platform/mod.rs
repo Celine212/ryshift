@@ -1,14 +1,25 @@
 //! The only OS-specific part: spotting "a file is being dragged and Shift was
 //! pressed", placing the wheel above everything, and reading the selection.
 //!
-//! Each OS module provides the same five functions.
+//! Each OS module provides the same five functions: `prepare`, `watch_drags`,
+//! `present`, `cursor` and `selected_files`.
 
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::*;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "windows")]
+pub use self::windows::*;
+
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::*;
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 mod fallback;
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub use fallback::*;

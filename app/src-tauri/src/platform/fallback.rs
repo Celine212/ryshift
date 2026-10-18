@@ -1,9 +1,9 @@
-//! Windows and Linux until their drag watchers land (milestones M2 and M3).
-//! The app still builds and runs there: the shortcut opens the wheel at the
-//! mouse, and files dropped onto the open wheel are processed.
+//! Desktops without a drag watcher yet (Ubuntu on Wayland until the GNOME
+//! extension lands in M3). The app still runs: the shortcut opens the wheel,
+//! and files dropped onto the open wheel are processed.
 
 use std::path::PathBuf;
-use tauri::{AppHandle, WebviewWindow};
+use tauri::{AppHandle, PhysicalPosition, Position, WebviewWindow};
 
 pub fn prepare(_win: &WebviewWindow) {}
 
@@ -14,8 +14,8 @@ pub fn present(win: &WebviewWindow, _focus: bool) {
     let _ = win.set_focus();
 }
 
-pub fn cursor() -> (f64, f64) {
-    (400.0, 300.0)
+pub fn cursor() -> Position {
+    PhysicalPosition::new(400, 300).into()
 }
 
 pub fn selected_files() -> Vec<PathBuf> {

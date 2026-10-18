@@ -9,5 +9,5 @@
 window.log=[]; const L={}; let dd;
 window.__TAURI__={core:{invoke:async(c,a)=>{log.push([c,a]);if(c==='run_action'){await new Promise(r=>setTimeout(r,300));return [a.paths[0].replace(/\.\w+$/,'.'+a.id.split('.')[1])]}}},
  event:{listen:(n,f)=>{L[n]=f}},webview:{getCurrentWebview:()=>({onDragDropEvent:f=>{dd=f}})}};
-window.emit=(n,p)=>L[n]({payload:p}); window.drag=(type,x,y,paths=[])=>dd({payload:{type,position:{x:x*devicePixelRatio,y:y*devicePixelRatio},paths}});
+window.emit=(n,p)=>L[n]({payload:p}); window.drag=(type,x,y,paths=[])=>dd({payload:{type,position:{x,y},paths}});
 </script><script src="../../app/ui/wheel.js"></script></body></html>

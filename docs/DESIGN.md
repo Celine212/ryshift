@@ -148,8 +148,8 @@ This is the only hard, OS-specific part.
 | System | How it detects the drag | How the wheel receives the drop | Works? |
 |---|---|---|---|
 | **macOS** | Change count on the system drag pasteboard (`NSPasteboard(name: .drag)`) plus a global mouse-drag monitor; Shift read from `NSEvent.modifierFlags` | Transparent, non-activating `NSPanel` at the cursor registered as a drag destination; Finder hands over file URLs | ✅ Full |
-| **Windows 10/11** | Low-level mouse hook (`WH_MOUSE_LL`) sees left-button-held movement; `GetAsyncKeyState(VK_SHIFT)` for Shift | Topmost layered window at the cursor registered with `RegisterDragDrop`; Explorer drops a `CF_HDROP` file list | ✅ Full |
-| **Ubuntu on X11** | XInput2 raw pointer events plus a check that an XDND drag owns the selection | Override-redirect window at the cursor acting as an XDND drop target | ✅ Full |
+| **Windows 10/11** | Poll `GetAsyncKeyState` for the left button and Shift; a drag is the button going down on an Explorer window or the desktop and moving past the system drag threshold. The dragged files are that window's selection, read through `IShellWindows` → `IShellBrowser` → `IFolderView` | Topmost window shown with `SW_SHOWNOACTIVATE` (so Explorer keeps the drag); WebView2's drop target receives Explorer's `CF_HDROP` as a copy | ✅ Explorer and desktop drags |
+| **Ubuntu on X11** | One `QueryPointer` request gives the position, button and Shift state; a drag is `XdndSelection` changing hands (or being re-acquired) after the button went down. Its `text/uri-list` gives the files | Always-on-top window at the cursor; WebKitGTK is the XDND drop target | ✅ Full |
 | **Ubuntu on Wayland** (the default since 22.04) | Wayland deliberately blocks normal apps from watching global input or placing windows at the cursor | A small **GNOME Shell extension** (JavaScript, part of this repo) draws the wheel inside the desktop shell itself and passes dropped paths to the engine over D-Bus | ✅ via the extension, installed once from extensions.gnome.org |
 | **Other Linux desktops** (KDE, Sway…) | No overlay at first | Fallbacks: right-click **Open with → Shiftwheel**, a drop-zone window you can pin, and the CLI | ⚠️ Partial; KDE support is a later add-on |
 
@@ -195,7 +195,7 @@ Adding a format is one file plus a test. This is the main way outside contributo
 ### Permissions and install
 | System | Asks for | Install via |
 |---|---|---|
-| macOS | Accessibility (for the global mouse monitor) | DMG on GitHub Releases, Homebrew cask |
+| macOS | Nothing for dragging (it only reads global state); "control Finder" the first time you use the shortcut | DMG on GitHub Releases, Homebrew cask |
 | Windows | Nothing special (the hook needs no admin) | MSI / `.exe` installer, `winget` |
 | Ubuntu | Nothing on X11; one-time GNOME extension on Wayland | `.deb`, AppImage, Flatpak (Flathub) |
 
@@ -224,8 +224,8 @@ shiftwheel/
 ## 5. Milestones
 | # | Ships | You can… |
 |---|---|---|
-| **M1** | Engine + CLI (images, PDF → images), Tauri shell, **Mac watcher**, Convert wheel | Do the reel's PDF → JPG demo on Mac |
-| **M2** | **Windows watcher + Linux X11 watcher**, CI building all three | Same demo on Windows and Ubuntu (X11) |
+| **M1** ✅ | Engine + CLI (images, PDF → images), Tauri shell, **Mac watcher**, Convert wheel | Do the reel's PDF → JPG demo on Mac |
+| **M2** ✅ | **Windows watcher + Linux X11 watcher**, CI building all three | Same demo on Windows and Ubuntu (X11) |
 | **M3** | **GNOME Shell extension** for Ubuntu Wayland | Works on stock Ubuntu |
 | **M4** | Tools wheel: Compress, Resize, Crop, Add background, Strip metadata; docs conversions; batch | Full match with the reel, on all three |
 | **M5** | Video / audio, Remove background, Redact, Annotate, data formats, archives | Go past the reel |

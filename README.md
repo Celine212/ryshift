@@ -6,7 +6,7 @@ Drag a file, press **Shift**, and a wheel of options pops up under your cursor. 
 
 - **No windows to open, no upload sites.** It works from Finder, the desktop, or anywhere else you can drag a file.
 - **Everything stays on your computer.** No account, no network, no telemetry.
-- **Free and open source (MIT).** macOS today; Windows and Ubuntu are next.
+- **Free and open source (MIT).** macOS, Windows and Ubuntu (X11); Ubuntu on Wayland is next.
 
 ## What it can do (v0.1)
 
@@ -28,8 +28,8 @@ The full plan (five wheels, 100+ actions, video, audio, documents, AI tools) is 
 4. Drop on a slice. Drop on the centre, or anywhere else, to cancel.
 
 **Select + shortcut** (no dragging)
-1. Select files in Finder.
-2. Press **⌥ Space**. The wheel opens at the mouse.
+1. Select files in Finder or File Explorer. On Ubuntu, copy them with Ctrl+C.
+2. Press **⌥ Space** on Mac, or **Ctrl + Alt + Space** on Windows and Ubuntu. The wheel opens at the mouse.
 3. Click a slice or press its number (1–8). **Tab** switches wheels and **Esc** closes it.
 
 The first time you use the shortcut, macOS asks whether Shiftwheel may talk to Finder. It needs that to read which files you selected.
@@ -38,10 +38,14 @@ The first time you use the shortcut, macOS asks whether Shiftwheel may talk to F
 
 | | Drag + Shift | Select + shortcut | Engine / CLI |
 |---|---|---|---|
-| macOS 12+ | ✅ | ✅ | ✅ |
-| Windows 10/11 | Coming in M2 | Coming in M2 | ✅ |
-| Ubuntu (X11) | Coming in M2 | Coming in M2 | ✅ |
-| Ubuntu (Wayland) | Coming in M3 (GNOME extension) | Coming in M3 | ✅ |
+| macOS 12+ | ✅ from Finder, the desktop, or any app | ✅ Finder selection, ⌥ Space | ✅ |
+| Windows 10/11 | ✅ from File Explorer and the desktop | ✅ Explorer selection, Ctrl + Alt + Space | ✅ |
+| Ubuntu on X11 | ✅ from any app that drags files (Files, desktop, browsers) | ✅ copy files (Ctrl+C), then Ctrl + Alt + Space | ✅ |
+| Ubuntu on Wayland (the default) | Coming in M3 (GNOME Shell extension) | Coming in M3 | ✅ |
+
+Windows and Ubuntu support is new and has been checked by CI builds only. If the wheel misbehaves on your machine, please open an issue.
+
+On Ubuntu, pick **Ubuntu on Xorg** on the login screen (gear icon) to use Shiftwheel before the Wayland extension lands.
 
 ## Build from source
 
@@ -72,7 +76,12 @@ cargo run -p shiftwheel-cli -- run tool.half photo.png
 
 - **`engine/`** is a Rust library that does the actual converting. It doesn't know about windows.
 - **`app/`** is a [Tauri 2](https://v2.tauri.app) menu bar app. The wheel itself is plain HTML/CSS/JS in `app/ui/`.
-- **`app/src-tauri/src/platform/`** is the only OS-specific code. On macOS it watches the system drag pasteboard and the Shift key; both are plain reads of global state, so no Accessibility permission is needed. The wheel is a transparent window that accepts the drop.
+- **`app/src-tauri/src/platform/`** is the only OS-specific code. Each OS spots "a file is being dragged and Shift went down" by polling global state, without hooks or special permissions:
+  - **macOS** watches the system drag pasteboard.
+  - **Windows** watches for a drag that starts in Explorer and reads the dragged files from Explorer's selection.
+  - **Linux (X11)** watches the XDND drag selection.
+
+  The wheel is a transparent window that accepts the drop as a copy, so the original file never moves.
 
 To tweak the wheel's look without building the app, serve the repo (`python3 -m http.server`) and open `docs/dev/wheel-preview.html`.
 

@@ -34,5 +34,8 @@ jobs:
       - name: Engine tests
         run: cargo test -p shiftwheel-engine
 
+      - name: App unit tests
+        run: cargo test -p shiftwheel-app
+
       - name: Build CLI and app
         run: cargo build -p shiftwheel-cli -p shiftwheel-app
