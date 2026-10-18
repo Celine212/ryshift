@@ -75,6 +75,20 @@ pub fn show_wheel(app: &AppHandle, paths: Vec<PathBuf>, at: Position, mode: &'st
     platform::present(&win, mode == "shortcut");
 }
 
+#[derive(Serialize)]
+struct Slices {
+    actions: Vec<engine::ActionInfo>,
+    size: u64,
+}
+
+/// The wheel asks for its slices itself when it opened before the files were
+/// known (Wayland: the files only arrive once the drag enters the window).
+#[tauri::command]
+fn actions_for(paths: Vec<String>) -> Slices {
+    let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    Slices { actions: engine::actions_for(&paths), size: engine::total_size(&paths) }
+}
+
 #[tauri::command]
 async fn run_action(id: String, paths: Vec<String>) -> Result<Vec<String>, String> {
     let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
@@ -108,10 +122,10 @@ fn tray(app: &tauri::App) -> tauri::Result<()> {
     let hint = MenuItem::with_id(app, "hint", "Drag a file and press Shift", false, None::<&str>)?;
     let label = format!("Or select a file and press {}", SHORTCUT.1);
     let shortcut = MenuItem::with_id(app, "shortcut", label, false, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Shiftwheel", true, Some("CmdOrCtrl+Q"))?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Ryshift", true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(app, &[&hint, &shortcut, &PredefinedMenuItem::separator(app)?, &quit])?;
     let mut builder = TrayIconBuilder::with_id("main")
-        .tooltip("Shiftwheel")
+        .tooltip("Ryshift")
         .menu(&menu)
         .on_menu_event(|app, event| {
             if event.id() == "quit" {
@@ -136,7 +150,7 @@ fn main() {
                 })
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![run_action, hide_wheel])
+        .invoke_handler(tauri::generate_handler![actions_for, run_action, hide_wheel])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -144,7 +158,7 @@ fn main() {
             // Another app may already own the shortcut; dragging still works then.
             let shortcut = Shortcut::new(Some(SHORTCUT.0), Code::Space);
             if let Err(e) = app.global_shortcut().register(shortcut) {
-                eprintln!("Shiftwheel: couldn't register {}: {e}", SHORTCUT.1);
+                eprintln!("Ryshift: couldn't register {}: {e}", SHORTCUT.1);
             }
             if let Some(win) = app.get_webview_window("wheel") {
                 platform::prepare(&win);
@@ -153,5 +167,5 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running Shiftwheel");
+        .expect("error while running Ryshift");
 }

@@ -64,7 +64,7 @@ pub fn heic_supported() -> bool {
 fn temp_path(ext: &str) -> PathBuf {
     static N: AtomicU32 = AtomicU32::new(0);
     let n = N.fetch_add(1, Ordering::Relaxed);
-    std::env::temp_dir().join(format!("shiftwheel-{}-{n}.{ext}", std::process::id()))
+    std::env::temp_dir().join(format!("ryshift-{}-{n}.{ext}", std::process::id()))
 }
 
 fn sips(args: &[&str]) -> Result<()> {

@@ -1,14 +1,14 @@
 [package]
-name = "shiftwheel-cli"
-description = "Every Shiftwheel action from the command line"
+name = "ryshift-cli"
+description = "Every Ryshift action from the command line"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "shiftwheel"
+name = "ryshift"
 path = "src/main.rs"
 
 [dependencies]
-shiftwheel-engine = { path = "../engine" }
+ryshift-engine = { path = "../engine" }

@@ -1,10 +1,10 @@
-//! `shiftwheel list <files…>`          show the slices available for these files
-//! `shiftwheel run <action> <files…>`  run one, e.g. `shiftwheel run convert.jpg scan.pdf`
+//! `ryshift list <files…>`          show the slices available for these files
+//! `ryshift run <action> <files…>`  run one, e.g. `ryshift run convert.jpg scan.pdf`
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage:\n  shiftwheel list <files…>\n  shiftwheel run <action> <files…>";
+const USAGE: &str = "usage:\n  ryshift list <files…>\n  ryshift run <action> <files…>";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -26,7 +26,7 @@ fn main() -> ExitCode {
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
-                    eprintln!("shiftwheel: {e}");
+                    eprintln!("ryshift: {e}");
                     ExitCode::FAILURE
                 }
             }

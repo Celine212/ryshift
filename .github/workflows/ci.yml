@@ -32,10 +32,30 @@ jobs:
         run: scripts/fetch-pdfium.sh
 
       - name: Engine tests
-        run: cargo test -p shiftwheel-engine
+        run: cargo test -p ryshift-engine
 
       - name: App unit tests
-        run: cargo test -p shiftwheel-app
+        run: cargo test -p ryshift-app
 
       - name: Build CLI and app
-        run: cargo build -p shiftwheel-cli -p shiftwheel-app
+        run: cargo build -p ryshift-cli -p ryshift-app
+
+  gnome-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax check
+        run: |
+          cp gnome-extension/ryshift@alexriderspy.github.io/extension.js /tmp/extension.mjs
+          node --check /tmp/extension.mjs
+
+      - name: Pack
+        run: |
+          sudo apt-get update && sudo apt-get install -y libglib2.0-bin zip
+          scripts/pack-gnome-extension.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ryshift-gnome-extension
+          path: dist/*.shell-extension.zip

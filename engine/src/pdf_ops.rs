@@ -14,7 +14,7 @@ fn pdf_err(e: PdfiumError) -> Error {
 /// Folders to look in for the Pdfium library, most specific first.
 fn search_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    if let Some(p) = std::env::var_os("SHIFTWHEEL_PDFIUM") {
+    if let Some(p) = std::env::var_os("RYSHIFT_PDFIUM") {
         dirs.push(PathBuf::from(p));
     }
     if let Ok(exe) = std::env::current_exe() {
@@ -23,7 +23,7 @@ fn search_dirs() -> Vec<PathBuf> {
             dirs.push(dir.join("lib"));
             dirs.push(dir.join("../lib"));
             dirs.push(dir.join("../Resources/lib")); // inside a macOS .app
-            dirs.push(dir.join("../lib/shiftwheel")); // Linux packages
+            dirs.push(dir.join("../lib/ryshift")); // Linux packages
         }
     }
     dirs.push(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../lib"))); // dev checkout

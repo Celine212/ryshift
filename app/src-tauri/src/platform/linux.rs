@@ -6,13 +6,15 @@
 //! was re-acquired) since the button went down. Pointer position, buttons and
 //! Shift all come from one `QueryPointer` request, so no input grabbing.
 //!
-//! Wayland doesn't let apps see global input, so there the fallback is used
-//! until the GNOME Shell extension (M3).
+//! Wayland doesn't let apps see global input. There the GNOME Shell extension
+//! in `gnome-extension/` spots the drag and drives the wheel through the
+//! D-Bus service in `dbus.rs`, which runs on X11 too (it's harmless there).
 
-use super::fallback;
+use super::{dbus, fallback};
+use gtk::prelude::*;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, PhysicalPosition, Position, WebviewWindow};
+use tauri::{AppHandle, Emitter, LogicalPosition, PhysicalPosition, Position, WebviewWindow};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{
     Atom, AtomEnum, ConnectionExt as _, CreateWindowAux, KeyButMask, Window, WindowClass,
@@ -47,7 +49,7 @@ impl X {
         conn.create_window(0, win, root, 0, 0, 1, 1, 0, WindowClass::INPUT_ONLY, 0, &CreateWindowAux::new())
             .ok()?;
         let mut x = X { conn, root, win, prop: NONE };
-        x.prop = x.atom("SHIFTWHEEL_SELECTION")?;
+        x.prop = x.atom("RYSHIFT_SELECTION")?;
         x.conn.flush().ok()?;
         Some(x)
     }
@@ -140,7 +142,39 @@ struct DragState {
     shift: bool,
 }
 
+/// Requests from the GNOME Shell extension (Wayland).
+fn handle(app: &AppHandle, request: dbus::Request) {
+    match request {
+        dbus::Request::Show { x, y, shortcut: false } => {
+            // The files aren't known until they enter the wheel window; the
+            // UI asks for the slices then.
+            let handle = app.clone();
+            let at: Position = LogicalPosition::new(x, y).into();
+            let _ = app.run_on_main_thread(move || crate::show_wheel(&handle, Vec::new(), at, "drag"));
+        }
+        dbus::Request::Show { x, y, shortcut: true } => {
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let paths = selected_files();
+                let handle = app.clone();
+                let at: Position = LogicalPosition::new(x, y).into();
+                let _ = app.run_on_main_thread(move || crate::show_wheel(&handle, paths, at, "shortcut"));
+            });
+        }
+        dbus::Request::Cycle => {
+            let _ = app.emit("wheel:cycle", ());
+        }
+        dbus::Request::MouseUp => {
+            let _ = app.emit("wheel:mouseup", ());
+        }
+    }
+}
+
 pub fn watch_drags(app: AppHandle) {
+    let for_dbus = app.clone();
+    if let Err(e) = dbus::serve(move |request| handle(&for_dbus, request)) {
+        eprintln!("Ryshift: D-Bus service unavailable ({e}); the GNOME extension can't reach the app");
+    }
     if !on_x11() {
         return fallback::watch_drags(app);
     }
@@ -219,17 +253,16 @@ pub fn cursor() -> Position {
 
 /// Linux file managers don't expose their selection, so the shortcut uses the
 /// files on the clipboard: select files, press Ctrl+C, then the shortcut.
+/// GTK's clipboard works on both X11 and Wayland; it must be used on the GTK
+/// main thread, so this hops there and waits (call it from another thread).
 pub fn selected_files() -> Vec<PathBuf> {
-    if !on_x11() {
-        return fallback::selected_files();
-    }
-    let Some(x) = X::open() else { return Vec::new() };
-    let Some(clipboard) = x.atom("CLIPBOARD") else { return Vec::new() };
-    ["x-special/gnome-copied-files", "text/uri-list"]
-        .iter()
-        .filter_map(|t| x.atom(t))
-        .find_map(|target| x.convert(clipboard, target).map(|b| parse_uris(&b)).filter(|p| !p.is_empty()))
-        .unwrap_or_default()
+    let (tx, rx) = std::sync::mpsc::channel();
+    gtk::glib::MainContext::default().invoke(move || {
+        let clipboard = gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD);
+        let uris: Vec<String> = clipboard.wait_for_uris().iter().map(|u| u.to_string()).collect();
+        let _ = tx.send(parse_uris(uris.join("\n").as_bytes()));
+    });
+    rx.recv_timeout(Duration::from_secs(2)).unwrap_or_default()
 }
 
 /// No blur API for apps on Linux desktops; the UI draws a frosted stand-in.

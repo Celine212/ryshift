@@ -45,6 +45,7 @@ function setHub(top, bottom) {
 }
 
 function restingHub() {
+  if (!state.paths.length && state.mode === "drag") return setHub("Ryshift", "READING FILE");
   if (!state.paths.length) return setHub("Select", "A FILE");
   if (!state.actions.length) return setHub("No options", "FOR THIS FILE");
   const count = state.paths.length > 1 ? `${state.paths.length} files · ` : "";
@@ -176,6 +177,16 @@ tauri.event.listen("wheel:mouseup", () => {
 tauri.webview.getCurrentWebview().onDragDropEvent(({ payload }) => {
   const scale = state.drop_in_pixels ? window.devicePixelRatio || 1 : 1;
   const pos = payload.position ? { x: payload.position.x / scale, y: payload.position.y / scale } : null;
+  if (payload.type === "enter" && payload.paths?.length && !state.paths.length) {
+    // Opened before the files were known (Wayland): fetch the slices now.
+    state.paths = payload.paths;
+    tauri.core.invoke("actions_for", { paths: payload.paths }).then(({ actions, size }) => {
+      state.actions = actions;
+      state.size = size;
+      state.wheel = availableWheels()[0] || "convert";
+      render();
+    });
+  }
   if (payload.type === "over" || payload.type === "enter") {
     if (pos) setHot(sliceAt(pos.x, pos.y));
   } else if (payload.type === "leave") {

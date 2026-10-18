@@ -1,0 +1,9 @@
+{
+  "uuid": "ryshift@alexriderspy.github.io",
+  "name": "Ryshift",
+  "description": "Drag a file, press Shift, drop it on a wheel to convert it. This extension lets the Ryshift app work on Wayland: it spots the drag and places the wheel at your pointer. Needs the Ryshift app running.",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "url": "https://github.com/alexriderspy/ryshift",
+  "settings-schema": "org.gnome.shell.extensions.ryshift",
+  "version-name": "0.1.0"
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.ryshift" path="/org/gnome/shell/extensions/ryshift/">
+    <key name="open-wheel" type="as">
+      <default><![CDATA[['<Control><Alt>space']]]></default>
+      <summary>Open the wheel for the copied files</summary>
+      <description>Copy files in Files (Ctrl+C), then press this to open the Ryshift wheel at the pointer.</description>
+    </key>
+  </schema>
+</schemalist>

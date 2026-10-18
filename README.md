@@ -1,4 +1,4 @@
-# Shiftwheel
+# Ryshift
 
 Drag a file, press **Shift**, and a wheel of options pops up under your cursor. Drop the file on a slice and the converted file appears right next to the original.
 
@@ -6,7 +6,7 @@ Drag a file, press **Shift**, and a wheel of options pops up under your cursor. 
 
 - **No windows to open, no upload sites.** It works from Finder, the desktop, or anywhere else you can drag a file.
 - **Everything stays on your computer.** No account, no network, no telemetry.
-- **Free and open source (MIT).** macOS, Windows and Ubuntu (X11); Ubuntu on Wayland is next.
+- **Free and open source (MIT).** macOS, Windows and Ubuntu (X11 and Wayland).
 
 ## What it can do (v0.1)
 
@@ -32,7 +32,7 @@ The full plan (five wheels, 100+ actions, video, audio, documents, AI tools) is 
 2. Press **⌥ Space** on Mac, or **Ctrl + Alt + Space** on Windows and Ubuntu. The wheel opens at the mouse.
 3. Click a slice or press its number (1–8). **Tab** switches wheels and **Esc** closes it.
 
-The first time you use the shortcut, macOS asks whether Shiftwheel may talk to Finder. It needs that to read which files you selected.
+The first time you use the shortcut, macOS asks whether Ryshift may talk to Finder. It needs that to read which files you selected.
 
 ## Platform status
 
@@ -41,35 +41,44 @@ The first time you use the shortcut, macOS asks whether Shiftwheel may talk to F
 | macOS 12+ | ✅ from Finder, the desktop, or any app | ✅ Finder selection, ⌥ Space | ✅ |
 | Windows 10/11 | ✅ from File Explorer and the desktop | ✅ Explorer selection, Ctrl + Alt + Space | ✅ |
 | Ubuntu on X11 | ✅ from any app that drags files (Files, desktop, browsers) | ✅ copy files (Ctrl+C), then Ctrl + Alt + Space | ✅ |
-| Ubuntu on Wayland (the default) | Coming in M3 (GNOME Shell extension) | Coming in M3 | ✅ |
+| Ubuntu on Wayland (the default) | ✅ with the Ryshift GNOME extension (GNOME 45+, Ubuntu 23.10+) | ✅ copy files (Ctrl+C), then Ctrl + Alt + Space | ✅ |
 
 Windows and Ubuntu support is new and has been checked by CI builds only. If the wheel misbehaves on your machine, please open an issue.
 
-On Ubuntu, pick **Ubuntu on Xorg** on the login screen (gear icon) to use Shiftwheel before the Wayland extension lands.
+### Ubuntu on Wayland
+
+Wayland doesn't let normal apps watch the mouse or place their own windows, so on Wayland Ryshift needs a small GNOME Shell extension. The extension spots "dragging + Shift", tells the app over D-Bus, and moves the wheel to your pointer. The file is still dropped on the app's own window, so the extension never touches files.
+
+```bash
+scripts/pack-gnome-extension.sh
+gnome-extensions install --force dist/ryshift@alexriderspy.github.io.shell-extension.zip
+```
+
+Log out and back in, then turn on **Ryshift** in the Extensions app. The Ryshift app must be running too. CI also builds the extension zip on every push (the `ryshift-gnome-extension` artifact).
 
 ## Build from source
 
 You need [Rust](https://rustup.rs) and Node.js 18+. On Linux, also install the [Tauri system packages](https://v2.tauri.app/start/prerequisites/#linux).
 
 ```bash
-git clone https://github.com/alexriderspy/shiftwheel
-cd shiftwheel
+git clone https://github.com/alexriderspy/ryshift
+cd ryshift
 scripts/fetch-pdfium.sh     # downloads the PDF engine into lib/
 cd app && npm install
 npm run dev                 # run it
-npm run build               # make Shiftwheel.app / .dmg (or .exe, .deb, .AppImage)
+npm run build               # make Ryshift.app / .dmg (or .exe, .deb, .AppImage)
 ```
 
-Shiftwheel lives in the menu bar. There's no main window: use the menu bar icon to quit.
+Ryshift lives in the menu bar. There's no main window: use the menu bar icon to quit.
 
 ## Command line
 
 Every action also works from the terminal:
 
 ```bash
-cargo run -p shiftwheel-cli -- list scan.pdf          # which actions fit this file
-cargo run -p shiftwheel-cli -- run convert.jpg scan.pdf
-cargo run -p shiftwheel-cli -- run tool.half photo.png
+cargo run -p ryshift-cli -- list scan.pdf          # which actions fit this file
+cargo run -p ryshift-cli -- run convert.jpg scan.pdf
+cargo run -p ryshift-cli -- run tool.half photo.png
 ```
 
 ## How it works
@@ -80,6 +89,7 @@ cargo run -p shiftwheel-cli -- run tool.half photo.png
   - **macOS** watches the system drag pasteboard.
   - **Windows** watches for a drag that starts in Explorer and reads the dragged files from Explorer's selection.
   - **Linux (X11)** watches the XDND drag selection.
+  - **Linux (Wayland)** relies on the GNOME Shell extension in `gnome-extension/`, which calls the app's D-Bus service (`io.github.alexriderspy.Ryshift`).
 
   The wheel is a transparent window that accepts the drop as a copy, so the original file never moves.
 
@@ -87,7 +97,7 @@ To tweak the wheel's look without building the app, serve the repo (`python3 -m 
 
 ## Contributing
 
-New formats are the easiest way to help. Add a case in `engine/src/lib.rs`, the code in its own module, and a test in `engine/tests/`. Run `cargo test -p shiftwheel-engine` before opening a PR.
+New formats are the easiest way to help. Add a case in `engine/src/lib.rs`, the code in its own module, and a test in `engine/tests/`. Run `cargo test -p ryshift-engine` before opening a PR.
 
 ## Look
 

@@ -1,4 +1,4 @@
-//! Shiftwheel engine: every action a wheel slice can run.
+//! Ryshift engine: every action a wheel slice can run.
 //!
 //! The engine knows nothing about windows or drags. Give it file paths and an
 //! action id, and it writes new files next to the originals and returns them.

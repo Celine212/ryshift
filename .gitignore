@@ -5,3 +5,4 @@ lib/*.dylib
 lib/*.so
 lib/*.dll
 .DS_Store
+dist/
