@@ -1,0 +1,39 @@
+//! `shiftwheel list <files…>`          show the slices available for these files
+//! `shiftwheel run <action> <files…>`  run one, e.g. `shiftwheel run convert.jpg scan.pdf`
+
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+const USAGE: &str = "usage:\n  shiftwheel list <files…>\n  shiftwheel run <action> <files…>";
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("list") if args.len() > 1 => {
+            let paths: Vec<PathBuf> = args[1..].iter().map(PathBuf::from).collect();
+            for a in engine::actions_for(&paths) {
+                println!("{:<8} {:<16} {}", format!("{:?}", a.wheel).to_lowercase(), a.id, a.title);
+            }
+            ExitCode::SUCCESS
+        }
+        Some("run") if args.len() > 2 => {
+            let paths: Vec<PathBuf> = args[2..].iter().map(PathBuf::from).collect();
+            match engine::run(&args[1], &paths) {
+                Ok(created) => {
+                    for p in created {
+                        println!("{}", p.display());
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("shiftwheel: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        _ => {
+            eprintln!("{USAGE}");
+            ExitCode::from(2)
+        }
+    }
+}

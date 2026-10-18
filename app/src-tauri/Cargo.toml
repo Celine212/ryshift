@@ -1,0 +1,25 @@
+[package]
+name = "shiftwheel-app"
+description = "Drag a file, hold Shift, drop it on a wheel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "shiftwheel-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+shiftwheel-engine = { path = "../../engine" }
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = "0.3"
+objc2-foundation = "0.3"

@@ -1,0 +1,76 @@
+:root {
+  --slice: rgba(250, 226, 210, 0.94);
+  --slice-edge: rgba(255, 255, 255, 0.75);
+  --slice-text: #6b3420;
+  --hot: #e8553d;
+  --hot-text: #ffffff;
+  --hub: rgba(255, 244, 236, 0.97);
+  --hub-text: #6b3420;
+  --muted: #a5705a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --slice: rgba(58, 40, 34, 0.94);
+    --slice-edge: rgba(255, 255, 255, 0.12);
+    --slice-text: #f6d9c8;
+    --hub: rgba(40, 28, 24, 0.97);
+    --hub-text: #f6d9c8;
+    --muted: #c49a86;
+  }
+}
+
+html, body {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+  font: 600 12px/1 -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+
+#wheel {
+  display: block;
+  opacity: 0;
+  transform: scale(0.6);
+  transform-origin: 160px 160px;
+  filter: drop-shadow(0 6px 16px rgba(80, 30, 10, 0.28));
+}
+
+#wheel.open {
+  opacity: 1;
+  transform: scale(1);
+  transition: transform 170ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 110ms ease-out;
+}
+
+.slice path {
+  fill: var(--slice);
+  stroke: var(--slice-edge);
+  stroke-width: 1;
+  transition: fill 90ms;
+}
+
+.slice text {
+  fill: var(--slice-text);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+.slice .key {
+  fill: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.slice.hot path { fill: var(--hot); }
+.slice.hot text { fill: var(--hot-text); }
+
+#hub { fill: var(--hub); stroke: var(--slice-edge); }
+#hub-top { fill: var(--hub-text); font-size: 13px; }
+#hub-bottom { fill: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: 0.06em; }
+#hub-top, #hub-bottom { pointer-events: none; }
+
+#wheel.busy #hub { animation: pulse 0.9s ease-in-out infinite; }
+@keyframes pulse { 50% { fill: var(--slice); } }

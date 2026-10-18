@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- Dev preview of the wheel UI in a normal browser, with a fake Tauri backend.
+     Serve the repo root (python3 -m http.server) and open /docs/dev/wheel-preview.html.
+     Console helpers: emit("wheel:show", {...}), drag("over"|"drop", x, y). -->
+<html><head><title>Wheel preview</title><meta charset="utf-8"><link rel="stylesheet" href="../../app/ui/wheel.css">
+<style>body{background:linear-gradient(135deg,#f3b13d,#e8553d 55%,#8e7cc3)!important;width:320px;height:320px}</style></head><body>
+<svg id="wheel" viewBox="0 0 320 320" width="320" height="320"><g id="slices"></g><circle id="hub" cx="160" cy="160" r="44"></circle><text id="hub-top" x="160" y="153" text-anchor="middle"></text><text id="hub-bottom" x="160" y="173" text-anchor="middle"></text></svg>
+<script>
+window.log=[]; const L={}; let dd;
+window.__TAURI__={core:{invoke:async(c,a)=>{log.push([c,a]);if(c==='run_action'){await new Promise(r=>setTimeout(r,300));return [a.paths[0].replace(/\.\w+$/,'.'+a.id.split('.')[1])]}}},
+ event:{listen:(n,f)=>{L[n]=f}},webview:{getCurrentWebview:()=>({onDragDropEvent:f=>{dd=f}})}};
+window.emit=(n,p)=>L[n]({payload:p}); window.drag=(type,x,y,paths=[])=>dd({payload:{type,position:{x:x*devicePixelRatio,y:y*devicePixelRatio},paths}});
+</script><script src="../../app/ui/wheel.js"></script></body></html>
