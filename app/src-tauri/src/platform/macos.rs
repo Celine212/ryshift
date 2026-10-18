@@ -69,8 +69,10 @@ pub fn watch_drags(app: AppHandle) {
             if st.mouse_down && !st.dragging && count != st.start_count {
                 st.paths = file_urls(&pb);
                 st.dragging = !st.paths.is_empty();
+                crate::debug!("drag started: {} file(s), shift already held: {}", st.paths.len(), shift);
             }
             if st.dragging && shift && !st.shift {
+                crate::debug!("shift pressed mid-drag (wheel shown: {})", st.shown);
                 if st.shown {
                     let _ = app.emit("wheel:cycle", ());
                 } else {
@@ -146,23 +148,45 @@ pub fn prepare(win: &WebviewWindow) {
 
 /// Mid-drag the wheel must appear without stealing focus from Finder. From
 /// the shortcut it takes focus so number keys and Esc work.
-pub fn present(win: &WebviewWindow, focus: bool) {
+pub fn present(win: &WebviewWindow, top_left: Position, focus: bool) {
+    place(win, top_left);
     if focus {
         let _ = win.show();
         let _ = win.set_focus();
     } else if let Some(w) = ns_window(win) {
         w.orderFrontRegardless();
+        crate::debug!("wheel ordered front: visible {}, frame {:?}", w.isVisible(), w.frame());
+    } else {
+        crate::debug!("present: no NSWindow");
+    }
+}
+
+fn primary_screen_height() -> f64 {
+    MainThreadMarker::new()
+        .and_then(|mtm| NSScreen::screens(mtm).firstObject())
+        .map(|s| s.frame().size.height)
+        .unwrap_or(0.0)
+}
+
+/// Move the window now, before it's shown. AppKit's origin is the bottom-left
+/// of the main screen, so flip y.
+fn place(win: &WebviewWindow, top_left: Position) {
+    let (x, y) = match top_left {
+        Position::Logical(p) => (p.x, p.y),
+        Position::Physical(p) => {
+            let s = win.scale_factor().unwrap_or(1.0);
+            (p.x as f64 / s, p.y as f64 / s)
+        }
+    };
+    if let Some(w) = ns_window(win) {
+        w.setFrameTopLeftPoint(NSPoint::new(x, primary_screen_height() - y));
     }
 }
 
 /// Mouse position in top-left based screen points. Must run on the main thread.
 pub fn cursor() -> Position {
     let p = NSEvent::mouseLocation();
-    let height = MainThreadMarker::new()
-        .and_then(|mtm| NSScreen::screens(mtm).firstObject())
-        .map(|s| s.frame().size.height)
-        .unwrap_or(0.0);
-    LogicalPosition::new(p.x, height - p.y).into()
+    LogicalPosition::new(p.x, primary_screen_height() - p.y).into()
 }
 
 const FINDER_SELECTION: &str = r#"

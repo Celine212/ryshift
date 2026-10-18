@@ -14,8 +14,9 @@
   --label: #17330f;
   --label-muted: rgba(92, 107, 85, 0.85);
   --divider: rgba(255, 255, 255, 0.55);
-  --hub: rgba(255, 255, 255, 0.34);
+  --hub-fill: rgba(255, 255, 255, 0.78);
   --accent: rgba(111, 91, 224, 0.92);
+  --accent-solid: #6f5be0;
   --accent-label: #fff8f1;
   --standin: rgba(255, 248, 241, 0.6);
   --standin-edge: rgba(255, 255, 255, 0.6);
@@ -26,8 +27,9 @@
     --label: #fff8f1;
     --label-muted: rgba(255, 248, 241, 0.55);
     --divider: rgba(255, 255, 255, 0.2);
-    --hub: rgba(255, 255, 255, 0.1);
+    --hub-fill: rgba(255, 255, 255, 0.14);
     --accent: rgba(124, 108, 240, 0.85);
+    --accent-solid: #7c6cf0;
     --standin: rgba(36, 36, 40, 0.55);
     --standin-edge: rgba(255, 255, 255, 0.18);
   }
@@ -90,34 +92,51 @@ body.native-glass #disk { display: none; }
 
 #sheen-disk { pointer-events: none; }
 
-.slice path {
-  fill: rgba(255, 255, 255, 0.001); /* invisible but still hit-testable */
-  stroke: var(--divider);
-  stroke-width: 0.75;
-  transition: fill 120ms ease-out;
+/* Petals: solid fill plus a same-colour round stroke (the rounded corners),
+   faded as one layer so the two don't double up where they overlap. */
+.slice .petal {
+  fill: #fff;
+  stroke: #fff;
+  stroke-width: 16;
+  stroke-linejoin: round;
+  opacity: 0.6;
+  transition: opacity 120ms ease-out, fill 120ms ease-out, stroke 120ms ease-out;
 }
 
 .slice text {
   fill: var(--label);
-  letter-spacing: 0.05em;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   pointer-events: none;
-  transition: fill 120ms ease-out;
+}
+
+.slice .icon {
+  fill: none;
+  stroke: var(--label);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 
 .slice .key {
   fill: var(--label-muted);
-  font-size: 9px;
-  font-weight: 500;
+  font-size: 8.5px;
+  font-weight: 700;
 }
 
-/* The hovered slice becomes a tinted glass bubble with its own sheen. */
-.slice.hot path { fill: var(--accent); stroke: rgba(255, 255, 255, 0.6); }
-.slice.hot text { fill: var(--accent-label); }
-.slice .glow { fill: url(#hot-glow); opacity: 0; pointer-events: none; transition: opacity 120ms ease-out; }
-.slice.hot .glow { opacity: 1; }
+@media (prefers-color-scheme: dark) {
+  .slice .petal { opacity: 0.13; }
+}
+
+/* The hovered petal turns Rynovi purple with cream content. */
+.slice.hot .petal { fill: var(--accent-solid); stroke: var(--accent-solid); opacity: 0.95; }
+.slice.hot text, .slice.hot .key { fill: var(--accent-label); }
+.slice.hot .icon { stroke: var(--accent-label); }
 
 #hub {
-  fill: var(--hub);
+  fill: var(--hub-fill);
   -webkit-backdrop-filter: blur(6px);
 }
 

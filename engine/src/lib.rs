@@ -43,11 +43,27 @@ pub struct ActionInfo {
     pub id: String,
     pub title: String,
     pub wheel: Wheel,
+    /// Tools that need input (crop box, drawings…) open this editor panel
+    /// instead of running straight away.
+    pub panel: Option<String>,
 }
 
 fn info(id: &str, title: &str, wheel: Wheel) -> ActionInfo {
-    ActionInfo { id: id.into(), title: title.into(), wheel }
+    ActionInfo { id: id.into(), title: title.into(), wheel, panel: None }
 }
+
+fn panel(name: &str, title: &str) -> ActionInfo {
+    ActionInfo { id: format!("tool.{name}"), title: title.into(), wheel: Wheel::Tools, panel: Some(name.into()) }
+}
+
+/// The editor panels, in slice order around the Tools wheel.
+const PANELS: &[(&str, &str)] = &[
+    ("crop", "Crop"),
+    ("edit", "Edit"),
+    ("annotate", "Annotate"),
+    ("addbg", "Add BG"),
+    ("redact", "Redact"),
+];
 
 /// Image formats the Convert wheel can write, in slice order.
 const IMAGE_TARGETS: &[(&str, &str)] = &[
@@ -61,11 +77,14 @@ const IMAGE_TARGETS: &[(&str, &str)] = &[
     ("gif", "GIF"),
 ];
 
-const IMAGE_TOOLS: &[(&str, &str)] = &[
-    ("tool.compress", "Compress"),
+/// One-click image tools on the wheel.
+const IMAGE_TOOLS: &[(&str, &str)] = &[("tool.compress", "Compress"), ("tool.strip", "Metadata")];
+
+/// Also one-click, but only offered by the CLI: on the wheel they live inside
+/// the Edit and Crop panels.
+const IMAGE_EXTRAS: &[(&str, &str)] = &[
     ("tool.half", "Half size"),
     ("tool.rotate", "Rotate"),
-    ("tool.strip", "Strip metadata"),
     ("tool.square", "Square 1:1"),
     ("tool.story", "Story 9:16"),
 ];
@@ -84,13 +103,22 @@ fn actions_for_kind(kind: Kind) -> Vec<ActionInfo> {
                     out.push(info(&format!("convert.{ext}"), title, Wheel::Convert));
                 }
             }
+            // Crop, Compress, Metadata, Edit, Annotate, Add BG, Redact
+            out.push(panel(PANELS[0].0, PANELS[0].1));
             for (id, title) in IMAGE_TOOLS {
                 out.push(info(id, title, Wheel::Tools));
+            }
+            for (name, title) in &PANELS[1..] {
+                out.push(panel(name, title));
             }
         }
         Kind::Pdf => {
             for (ext, title) in PDF_TARGETS {
                 out.push(info(&format!("convert.{ext}"), title, Wheel::Convert));
+            }
+            // Panels work on the first page, like the reel's demo.
+            for (name, title) in PANELS {
+                out.push(panel(name, title));
             }
         }
         Kind::Other => {}
@@ -102,9 +130,56 @@ fn actions_for_kind(kind: Kind) -> Vec<ActionInfo> {
 pub fn actions_for(paths: &[PathBuf]) -> Vec<ActionInfo> {
     let mut iter = paths.iter().map(|p| actions_for_kind(Kind::of(p)));
     let Some(first) = iter.next() else { return Vec::new() };
-    iter.fold(first, |acc, next| {
-        acc.into_iter().filter(|a| next.iter().any(|b| b.id == a.id)).collect()
-    })
+    let shared = iter.fold(first, |acc, next| {
+        acc.into_iter().filter(|a| next.iter().any(|b| b.id == a.id)).collect::<Vec<_>>()
+    });
+    // An editor panel works on one file at a time.
+    if paths.len() > 1 {
+        return shared.into_iter().filter(|a| a.panel.is_none()).collect();
+    }
+    shared
+}
+
+/// Everything the CLI can run on these files: the wheel's actions plus the
+/// one-click extras (resize, rotate, fixed crops).
+pub fn all_actions_for(paths: &[PathBuf]) -> Vec<ActionInfo> {
+    let mut all: Vec<ActionInfo> = actions_for(paths).into_iter().filter(|a| a.panel.is_none()).collect();
+    if !paths.is_empty() && paths.iter().all(|p| matches!(Kind::of(p), Kind::Image(_))) {
+        all.extend(IMAGE_EXTRAS.iter().map(|(id, title)| info(id, title, Wheel::Tools)));
+    }
+    all
+}
+
+/// An image ready for an editor panel: PNG bytes plus the format to save in.
+pub struct EditSource {
+    pub png: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    /// "jpg" for photos and PDFs, "png" for everything else (keeps transparency).
+    pub out_ext: &'static str,
+}
+
+/// Decode a file for editing. PDFs give their first page.
+pub fn load_for_edit(path: &Path) -> Result<EditSource> {
+    let (img, out_ext) = match Kind::of(path) {
+        Kind::Image(f) => {
+            let ext = if matches!(f, image_ops::Format::Jpg | image_ops::Format::Heic) { "jpg" } else { "png" };
+            (image_ops::load(path)?, ext)
+        }
+        Kind::Pdf => (pdf_ops::render_page(path, 0)?, "jpg"),
+        Kind::Other => return Err(Error::Unsupported("editing".into())),
+    };
+    Ok(EditSource { png: image_ops::png_bytes(&img)?, width: img.width(), height: img.height(), out_ext })
+}
+
+/// Write an edited image next to the original, e.g. `Page 001 Cropped.jpg`.
+pub fn save_edit(original: &Path, suffix: &str, ext: &str, bytes: &[u8]) -> Result<PathBuf> {
+    if !matches!(ext, "png" | "jpg") || suffix.is_empty() || suffix.contains(['/', '\\']) {
+        return Err(Error::Other(format!("can't save as {suffix:?}.{ext}")));
+    }
+    let out = naming::sibling(original, Some(suffix), ext);
+    std::fs::write(&out, bytes)?;
+    Ok(out)
 }
 
 /// Run one action on every file. Returns the files it created.
@@ -118,6 +193,9 @@ pub fn run(action_id: &str, paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
 
 fn run_one(action_id: &str, path: &Path) -> Result<Vec<PathBuf>> {
     let unsupported = || Error::Unsupported(action_id.to_string());
+    if let Some(name) = action_id.strip_prefix("tool.").filter(|n| PANELS.iter().any(|(p, _)| p == n)) {
+        return Err(Error::Other(format!("{name} needs its editor: open it from the wheel")));
+    }
     match (Kind::of(path), action_id.split_once('.')) {
         (Kind::Image(_), Some(("convert", "pdf"))) => {
             let img = image_ops::load(path)?;

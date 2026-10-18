@@ -76,6 +76,14 @@ fn sips(args: &[&str]) -> Result<()> {
     }
 }
 
+/// PNG bytes for handing an image to the editor; fast compression, since it
+/// never touches disk.
+pub fn png_bytes(img: &DynamicImage) -> Result<Vec<u8>> {
+    let mut out = Vec::new();
+    img.write_with_encoder(PngEncoder::new_with_quality(&mut out, CompressionType::Fast, FilterType::Adaptive))?;
+    Ok(out)
+}
+
 /// Decode any supported image, turned the right way up (phone photos store
 /// their rotation in EXIF).
 pub fn load(path: &Path) -> Result<DynamicImage> {

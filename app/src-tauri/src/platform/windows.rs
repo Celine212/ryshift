@@ -197,9 +197,20 @@ fn clip_to_disk(win: &WebviewWindow, hwnd: HWND) {
 
 /// Mid-drag the wheel must appear without taking focus from Explorer, or the
 /// drag would be cancelled. From the shortcut it takes focus for the keys.
-pub fn present(win: &WebviewWindow, focus: bool) {
+pub fn present(win: &WebviewWindow, top_left: Position, focus: bool) {
+    // Placed directly: a queued move could land after the window is shown.
+    let (x, y) = match top_left {
+        Position::Physical(p) => (p.x, p.y),
+        Position::Logical(p) => {
+            let s = win.scale_factor().unwrap_or(1.0);
+            ((p.x * s) as i32, (p.y * s) as i32)
+        }
+    };
     if let Some(hwnd) = hwnd_of(win) {
         clip_to_disk(win, hwnd);
+        unsafe {
+            let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+        }
     }
     if focus {
         let _ = win.show();

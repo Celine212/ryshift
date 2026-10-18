@@ -1,13 +1,26 @@
 // Release builds on Windows shouldn't open a console window.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+/// `RYSHIFT_DEBUG=1` prints what the drag watcher sees, for bug reports.
+macro_rules! debug {
+    ($($arg:tt)*) => {
+        if std::env::var_os("RYSHIFT_DEBUG").is_some() {
+            eprintln!("[ryshift] {}", format!($($arg)*));
+        }
+    };
+}
+#[allow(unused_imports)] // only the macOS watcher logs so far
+pub(crate) use debug;
+
 mod platform;
 
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, LogicalPosition, Manager, PhysicalPosition, Position};
+use base64::Engine as _;
+use std::sync::atomic::{AtomicU32, Ordering};
+use tauri::{AppHandle, Emitter, LogicalPosition, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 /// ⌥ Space on Mac. Alt + Space is the window menu on Windows and GNOME, so
@@ -52,7 +65,11 @@ fn scale_at(app: &AppHandle, x: f64, y: f64) -> f64 {
 
 /// Open the wheel centred on `at` (from `platform::cursor`) for these files.
 pub fn show_wheel(app: &AppHandle, paths: Vec<PathBuf>, at: Position, mode: &'static str) {
-    let Some(win) = app.get_webview_window("wheel") else { return };
+    let Some(win) = app.get_webview_window("wheel") else {
+        debug!("show_wheel: no wheel window");
+        return;
+    };
+    debug!("show_wheel: {} file(s), mode {mode}, at {at:?}", paths.len());
     let payload = ShowPayload {
         actions: engine::actions_for(&paths),
         size: engine::total_size(&paths),
@@ -70,9 +87,13 @@ pub fn show_wheel(app: &AppHandle, paths: Vec<PathBuf>, at: Position, mode: &'st
             PhysicalPosition::new((x - half) as i32, (y - half) as i32).into()
         }
     };
+    // Also queued here so Tauri's own idea of the position stays current; the
+    // platform places the window directly too, because a queued move can land
+    // after the window is already on screen (the wheel then opened where Shift
+    // was pressed the time before).
     let _ = win.set_position(top_left);
     let _ = win.emit("wheel:show", payload);
-    platform::present(&win, mode == "shortcut");
+    platform::present(&win, top_left, mode == "shortcut");
 }
 
 #[derive(Serialize)]
@@ -96,6 +117,71 @@ async fn run_action(id: String, paths: Vec<String>) -> Result<Vec<String>, Strin
         .await
         .map_err(|e| e.to_string())?
         .map(|out| out.iter().map(|p| p.to_string_lossy().into_owned()).collect())
+        .map_err(|e| e.to_string())
+}
+
+/// Open an editor panel (crop, edit, annotate, addbg, redact) for one file.
+#[tauri::command]
+fn open_panel(app: AppHandle, panel: String, path: String) -> Result<(), String> {
+    let title = match panel.as_str() {
+        "crop" => "Crop image",
+        "edit" => "Edit image",
+        "annotate" => "Annotate",
+        "addbg" => "Add background",
+        "redact" => "Redact",
+        _ => return Err(format!("unknown panel {panel}")),
+    };
+    // A fresh label each time, so opening one while the last is closing can't clash.
+    static N: AtomicU32 = AtomicU32::new(0);
+    let label = format!("editor-{}", N.fetch_add(1, Ordering::Relaxed));
+    let init = format!("window.__RYSHIFT_EDIT__ = {};", serde_json::json!({ "mode": panel, "path": path }));
+    let win = WebviewWindowBuilder::new(&app, label, WebviewUrl::App("editor.html".into()))
+        .title(title)
+        .inner_size(900.0, 660.0)
+        .min_inner_size(600.0, 460.0)
+        .center()
+        .initialization_script(&init)
+        .build()
+        .map_err(|e| e.to_string())?;
+    let _ = win.set_focus();
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct EditImage {
+    data_url: String,
+    width: u32,
+    height: u32,
+    /// Format the result is saved in: "jpg" or "png".
+    ext: &'static str,
+    name: String,
+}
+
+#[tauri::command]
+async fn load_for_edit(path: String) -> Result<EditImage, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = PathBuf::from(path);
+        let src = engine::load_for_edit(&path).map_err(|e| e.to_string())?;
+        Ok(EditImage {
+            data_url: format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(&src.png)),
+            width: src.width,
+            height: src.height,
+            ext: src.out_ext,
+            name: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Save the editor's result (base64 image bytes) next to the original.
+#[tauri::command]
+async fn save_edit(path: String, suffix: String, ext: String, data: String) -> Result<String, String> {
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data).map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || engine::save_edit(&PathBuf::from(path), &suffix, &ext, &bytes))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|p| p.to_string_lossy().into_owned())
         .map_err(|e| e.to_string())
 }
 
@@ -150,7 +236,7 @@ fn main() {
                 })
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![actions_for, run_action, hide_wheel])
+        .invoke_handler(tauri::generate_handler![actions_for, run_action, hide_wheel, open_panel, load_for_edit, save_edit])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

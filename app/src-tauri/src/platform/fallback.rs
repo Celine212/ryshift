@@ -9,7 +9,7 @@ pub fn prepare(_win: &WebviewWindow) {}
 
 pub fn watch_drags(_app: AppHandle) {}
 
-pub fn present(win: &WebviewWindow, _focus: bool) {
+pub fn present(win: &WebviewWindow, _top_left: Position, _focus: bool) {
     let _ = win.show();
     let _ = win.set_focus();
 }

@@ -12,8 +12,16 @@ Drag a file, press **Shift**, and a wheel of options pops up under your cursor. 
 
 | You drag | Convert wheel | Tools wheel |
 |---|---|---|
-| Images: PNG, JPG, WEBP, HEIC, TIFF, BMP, GIF, ICO | PNG, JPG, WEBP, PDF, HEIC (Mac), TIFF, BMP, GIF | Compress, Half size, Rotate, Strip metadata, Square 1:1, Story 9:16 |
-| PDF | JPG, PNG (one per page), TXT | — |
+| Images: PNG, JPG, WEBP, HEIC, TIFF, BMP, GIF, ICO | PNG, JPG, WEBP, PDF, HEIC (Mac), TIFF, BMP, GIF | Crop, Compress, Metadata, Edit, Annotate, Add BG, Redact |
+| PDF | JPG, PNG (one per page), TXT | Crop, Edit, Annotate, Add BG, Redact (on page 1) |
+
+**Editor panels.** Five tools open a small editor before saving:
+
+- **Crop:** drag the box or its corners. Ratios: Free, 1:1, 4:5, 9:16, 16:9, Original.
+- **Edit:** rotate, flip, brightness, contrast, saturation, and resize (100/75/50/25%).
+- **Annotate:** pen, arrow, box, highlighter and text in the Rynovi colours, with undo.
+- **Add BG:** put screenshots on a gradient or solid background, with padding, rounded corners, shadow and a 1:1, 4:5, 16:9 or 9:16 shape.
+- **Redact:** black boxes, or pixelate.
 
 Drag several files at once and the action runs on all of them. Originals are never touched, and a name that's taken becomes `Name 2.jpg`, like Finder does.
 
@@ -73,7 +81,7 @@ Ryshift lives in the menu bar. There's no main window: use the menu bar icon to 
 
 ## Command line
 
-Every action also works from the terminal:
+Every one-click action also works from the terminal, plus a few extras (`tool.half`, `tool.rotate`, `tool.square`, `tool.story`):
 
 ```bash
 cargo run -p ryshift-cli -- list scan.pdf          # which actions fit this file
@@ -93,11 +101,15 @@ cargo run -p ryshift-cli -- run tool.half photo.png
 
   The wheel is a transparent window that accepts the drop as a copy, so the original file never moves.
 
-To tweak the wheel's look without building the app, serve the repo (`python3 -m http.server`) and open `docs/dev/wheel-preview.html`.
+To work on the UI without building the app, serve the repo (`python3 -m http.server`) and open:
+
+- `docs/dev/wheel-preview.html?demo` to see the wheel
+- `docs/dev/editor-preview.html?mode=crop` (or `edit`, `annotate`, `addbg`, `redact`) for an editor panel
+- `docs/dev/ui-tests.html` for the automated UI tests (28 of them: wheel hit-testing, every editor panel, checked pixel by pixel)
 
 ## Contributing
 
-New formats are the easiest way to help. Add a case in `engine/src/lib.rs`, the code in its own module, and a test in `engine/tests/`. Run `cargo test -p ryshift-engine` before opening a PR.
+New formats are the easiest way to help. Add a case in `engine/src/lib.rs`, the code in its own module, and a test in `engine/tests/`. Before opening a PR, run `cargo test -p ryshift-engine` and open `docs/dev/ui-tests.html`.
 
 ## Look
 

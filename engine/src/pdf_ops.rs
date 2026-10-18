@@ -67,6 +67,15 @@ pub fn to_images(path: &Path, format: Format) -> Result<Vec<PathBuf>> {
     Ok(out)
 }
 
+/// Render one page at 2x, the same scale as PDF -> image conversion.
+pub fn render_page(path: &Path, index: PdfPageIndex) -> Result<image::DynamicImage> {
+    let doc = pdfium()?.load_pdf_from_file(path, None).map_err(pdf_err)?;
+    let page = doc.pages().get(index).map_err(pdf_err)?;
+    let config = PdfRenderConfig::new().scale_page_by_factor(2.0);
+    let image = page.render_with_config(&config).map_err(pdf_err)?.as_image().map_err(pdf_err)?;
+    Ok(image)
+}
+
 pub fn to_text(path: &Path) -> Result<PathBuf> {
     let doc = pdfium()?.load_pdf_from_file(path, None).map_err(pdf_err)?;
     let mut text = String::new();

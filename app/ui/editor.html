@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Ryshift editor</title>
+  <link rel="stylesheet" href="editor.css" />
+</head>
+<body>
+  <header>
+    <h1 id="title">Editor</h1>
+    <span id="filename"></span>
+  </header>
+  <main>
+    <div id="stage">
+      <canvas id="view"></canvas>
+      <p id="loading">Opening…</p>
+    </div>
+    <aside id="controls"></aside>
+  </main>
+  <footer>
+    <span id="status"></span>
+    <button id="cancel" class="ghost" type="button">Cancel</button>
+    <button id="save" class="primary" type="button" disabled>Save</button>
+  </footer>
+  <script src="editor.js"></script>
+</body>
+</html>

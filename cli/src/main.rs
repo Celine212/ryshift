@@ -11,7 +11,7 @@ fn main() -> ExitCode {
     match args.first().map(String::as_str) {
         Some("list") if args.len() > 1 => {
             let paths: Vec<PathBuf> = args[1..].iter().map(PathBuf::from).collect();
-            for a in engine::actions_for(&paths) {
+            for a in engine::all_actions_for(&paths) {
                 println!("{:<8} {:<16} {}", format!("{:?}", a.wheel).to_lowercase(), a.id, a.title);
             }
             ExitCode::SUCCESS

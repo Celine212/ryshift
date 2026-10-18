@@ -235,7 +235,8 @@ pub fn prepare(win: &WebviewWindow) {
     fallback::prepare(win);
 }
 
-pub fn present(win: &WebviewWindow, focus: bool) {
+/// GTK applies the queued move before the queued show, so nothing extra here.
+pub fn present(win: &WebviewWindow, _top_left: Position, focus: bool) {
     let _ = win.show();
     if focus {
         let _ = win.set_focus();

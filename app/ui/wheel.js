@@ -33,10 +33,48 @@ function availableWheels() {
   return WHEELS.filter((w) => wheelActions(w).length > 0);
 }
 
-function arc(a0, a1, r0, r1) {
-  const p = (a, r) => `${C + r * Math.cos(a)} ${C + r * Math.sin(a)}`;
-  const large = a1 - a0 > Math.PI ? 1 : 0;
-  return `M${p(a0, r1)}A${r1} ${r1} 0 ${large} 1 ${p(a1, r1)}L${p(a1, r0)}A${r0} ${r0} 0 ${large} 0 ${p(a0, r0)}Z`;
+// Petals sit inside the glass disk, clear of the hub.
+const P_IN = 54;
+const P_OUT = 142;
+const P_ROUND = 8; // corner radius, made by a same-colour round-joined stroke
+
+// Small line icons (24px grid), drawn for Ryshift.
+const ICONS = {
+  image: '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l6-6 4 4 3-3 4 4"/>',
+  doc: '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/>',
+  txt: '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h7"/>',
+  crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
+  compress: '<path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M10 14l-6 6"/><path d="M14 10l6-6"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  sliders: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2"/><circle cx="15" cy="12" r="2.2"/><circle cx="7" cy="18" r="2.2"/>',
+  pen: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  frame: '<rect x="2.5" y="2.5" width="19" height="19" rx="4"/><rect x="7" y="7" width="10" height="10" rx="2"/>',
+  redact: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 20L20 4"/>',
+  tool: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/>',
+};
+
+function iconFor(id) {
+  const map = {
+    "convert.pdf": "doc", "convert.txt": "txt", "tool.crop": "crop", "tool.compress": "compress",
+    "tool.strip": "tag", "tool.edit": "sliders", "tool.annotate": "pen", "tool.addbg": "frame", "tool.redact": "redact",
+  };
+  return map[id] || (id.startsWith("convert.") ? "image" : "tool");
+}
+
+// One rounded petal: an annular sector drawn inset, which the thick round-joined
+// stroke (same colour) grows back out with soft corners and a gap to its neighbours.
+function petalPath(a0, a1, n) {
+  const p = (a, r) => `${(C + r * Math.cos(a)).toFixed(2)} ${(C + r * Math.sin(a)).toFixed(2)}`;
+  const ri = P_IN + P_ROUND, ro = P_OUT - P_ROUND;
+  if (n === 1) {
+    // A single slice is a full ring.
+    return `M${C + ro} ${C}A${ro} ${ro} 0 1 1 ${C - ro} ${C}A${ro} ${ro} 0 1 1 ${C + ro} ${C}Z` +
+      `M${C + ri} ${C}A${ri} ${ri} 0 1 0 ${C - ri} ${C}A${ri} ${ri} 0 1 0 ${C + ri} ${C}Z`;
+  }
+  const pad = (r) => (P_ROUND + 3) / r;
+  const b0o = a0 + pad(ro), b1o = a1 - pad(ro), b0i = a0 + pad(ri), b1i = a1 - pad(ri);
+  const large = b1o - b0o > Math.PI ? 1 : 0;
+  return `M${p(b0o, ro)}A${ro} ${ro} 0 ${large} 1 ${p(b1o, ro)}L${p(b1i, ri)}A${ri} ${ri} 0 ${large} 0 ${p(b0i, ri)}Z`;
 }
 
 function setHub(top, bottom) {
@@ -56,32 +94,36 @@ function render() {
   slicesEl.replaceChildren();
   const list = wheelActions();
   const n = list.length;
-  const gap = n > 1 ? 0.035 : 0;
   list.forEach((action, i) => {
-    const a0 = -Math.PI / 2 - Math.PI / n + (i * 2 * Math.PI) / n + gap / 2;
-    const a1 = a0 + (2 * Math.PI) / n - gap;
+    const a0 = -Math.PI / 2 - Math.PI / n + (i * 2 * Math.PI) / n;
+    const a1 = a0 + (2 * Math.PI) / n;
     const mid = (a0 + a1) / 2;
-    const rText = (R_IN + R_OUT) / 2 + 4;
+    // Content centre: the middle of the petal, or the top of the ring for one slice.
+    const rMid = 98;
+    const cx = n === 1 ? C : C + rMid * Math.cos(mid);
+    const cy = n === 1 ? C - rMid : C + rMid * Math.sin(mid);
     const g = document.createElementNS(SVG, "g");
     g.setAttribute("class", "slice" + (i === state.hot ? " hot" : ""));
     g.dataset.index = i;
-    const d = n === 1 ? arc(0, Math.PI * 1.999, R_IN, R_OUT) : arc(a0, a1, R_IN, R_OUT);
     const path = document.createElementNS(SVG, "path");
-    path.setAttribute("d", d);
-    const glow = document.createElementNS(SVG, "path");
-    glow.setAttribute("class", "glow");
-    glow.setAttribute("d", d);
+    path.setAttribute("class", "petal");
+    path.setAttribute("d", petalPath(a0, a1, n));
+    path.setAttribute("fill-rule", "evenodd");
+    const icon = document.createElementNS(SVG, "g");
+    icon.setAttribute("class", "icon");
+    icon.setAttribute("transform", `translate(${cx - 10} ${cy - 20}) scale(0.84)`);
+    icon.innerHTML = ICONS[iconFor(action.id)];
     const label = document.createElementNS(SVG, "text");
-    label.setAttribute("x", C + rText * Math.cos(mid));
-    label.setAttribute("y", C + rText * Math.sin(mid) + 4);
+    label.setAttribute("x", cx);
+    label.setAttribute("y", cy + 15);
     label.setAttribute("text-anchor", "middle");
     label.textContent = action.title.toUpperCase();
-    g.append(path, glow, label);
+    g.append(path, icon, label);
     if (state.mode === "shortcut") {
       const key = document.createElementNS(SVG, "text");
       key.setAttribute("class", "key");
-      key.setAttribute("x", C + (R_OUT - 14) * Math.cos(mid));
-      key.setAttribute("y", C + (R_OUT - 14) * Math.sin(mid) + 3);
+      key.setAttribute("x", cx);
+      key.setAttribute("y", cy + 28);
       key.setAttribute("text-anchor", "middle");
       key.textContent = i + 1;
       g.append(key);
@@ -91,7 +133,7 @@ function render() {
     g.addEventListener("click", () => runSlice(i));
     slicesEl.append(g);
   });
-  if (state.hot >= 0 && list[state.hot]) setHub(list[state.hot].title, "DROP TO RUN");
+  if (state.hot >= 0 && list[state.hot]) setHub(list[state.hot].title, list[state.hot].panel ? "DROP TO OPEN" : "DROP TO RUN");
   else restingHub();
 }
 
@@ -127,6 +169,15 @@ function shortName(path) {
 async function runSlice(i, paths = state.paths) {
   const action = wheelActions()[i];
   if (!action || state.busy || !paths.length) return hide();
+  if (action.panel) {
+    // Tools that need input open their editor window; the wheel's job is done.
+    try {
+      await tauri.core.invoke("open_panel", { panel: action.panel, path: paths[0] });
+    } catch (err) {
+      console.error(err);
+    }
+    return hide();
+  }
   state.busy = true;
   state.hot = i;
   render();

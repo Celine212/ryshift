@@ -23,12 +23,50 @@ fn image_wheel_hides_its_own_format() {
 }
 
 #[test]
+fn tools_wheel_matches_the_reel() {
+    let dir = tempfile::tempdir().unwrap();
+    let png = sample_png(dir.path(), "a.png", 8, 8);
+    let tools: Vec<String> = engine::actions_for(&[png.clone()])
+        .into_iter()
+        .filter(|a| matches!(a.wheel, engine::Wheel::Tools))
+        .map(|a| a.title)
+        .collect();
+    assert_eq!(tools, ["Crop", "Compress", "Metadata", "Edit", "Annotate", "Add BG", "Redact"]);
+    assert!(engine::run("tool.crop", &[png]).is_err(), "panel tools can't run without their editor");
+}
+
+#[test]
+fn editor_load_and_save_round_trip() {
+    let dir = tempfile::tempdir().unwrap();
+    let png = sample_png(dir.path(), "Shot.png", 30, 20);
+    let src = engine::load_for_edit(&png).unwrap();
+    assert_eq!((src.width, src.height, src.out_ext), (30, 20, "png"));
+    let out = engine::save_edit(&png, "Cropped", "png", &src.png).unwrap();
+    assert_eq!(out, dir.path().join("Shot Cropped.png"));
+    assert_eq!(image::open(&out).unwrap().width(), 30);
+    assert!(engine::save_edit(&png, "../evil", "png", &src.png).is_err());
+    assert!(engine::save_edit(&png, "x", "exe", &src.png).is_err());
+}
+
+#[test]
 fn mixed_selection_only_offers_shared_actions() {
     let dir = tempfile::tempdir().unwrap();
     let png = sample_png(dir.path(), "a.png", 8, 8);
     let pdf = dir.path().join("b.pdf");
     std::fs::write(&pdf, b"%PDF-1.4").unwrap();
     assert_eq!(ids(&[png, pdf]), vec!["convert.jpg".to_string()]);
+}
+
+#[test]
+fn editors_only_offered_for_a_single_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = sample_png(dir.path(), "a.png", 8, 8);
+    let b = sample_png(dir.path(), "b.png", 8, 8);
+    let has_crop = |paths: &[PathBuf]| engine::actions_for(paths).iter().any(|x| x.id == "tool.crop");
+    assert!(has_crop(&[a.clone()]));
+    assert!(!has_crop(&[a.clone(), b.clone()]));
+    // One-click tools still batch.
+    assert!(engine::actions_for(&[a, b]).iter().any(|x| x.id == "tool.compress"));
 }
 
 #[test]
