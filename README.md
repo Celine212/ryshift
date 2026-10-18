@@ -89,6 +89,10 @@ To tweak the wheel's look without building the app, serve the repo (`python3 -m 
 
 New formats are the easiest way to help. Add a case in `engine/src/lib.rs`, the code in its own module, and a test in `engine/tests/`. Run `cargo test -p shiftwheel-engine` before opening a PR.
 
+## Look
+
+The wheel sits on real OS glass: Liquid Glass on macOS 26+, the frosted HUD blur on older Macs, Acrylic on Windows, and a translucent stand-in on Linux. Colours and type follow the Rynovi brand (purple `#6f5be0`, ink `#17330f`, Inter Tight).
+
 ## License
 
-MIT
+MIT. The bundled Inter Tight font is under the SIL Open Font License 1.1 (`app/ui/fonts/OFL.txt`).

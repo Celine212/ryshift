@@ -32,6 +32,9 @@ struct ShowPayload {
     /// Windows really sends pixels; macOS and Linux send points. The UI
     /// divides by the pixel ratio only when this is true.
     drop_in_pixels: bool,
+    /// The OS draws real glass behind the wheel (Liquid Glass / Acrylic), so
+    /// the UI skips its CSS stand-in disk.
+    native_glass: bool,
 }
 
 /// Scale factor of the monitor containing a physical screen point.
@@ -56,6 +59,7 @@ pub fn show_wheel(app: &AppHandle, paths: Vec<PathBuf>, at: Position, mode: &'st
         paths: paths.iter().map(|p| p.to_string_lossy().into_owned()).collect(),
         mode,
         drop_in_pixels: cfg!(target_os = "windows"),
+        native_glass: platform::native_glass(),
     };
     let half = WHEEL_SIZE / 2.0;
     let top_left: Position = match at {

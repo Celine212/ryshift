@@ -8,9 +8,11 @@
 
 use std::path::PathBuf;
 use std::time::Duration;
+use tauri::window::{Effect, EffectsBuilder};
 use tauri::{AppHandle, Emitter, PhysicalPosition, Position, WebviewWindow};
 use windows::core::Interface;
 use windows::Win32::Foundation::{HWND, POINT};
+use windows::Win32::Graphics::Gdi::{CreateEllipticRgn, SetWindowRgn};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, IDispatch, IServiceProvider, CLSCTX_ALL,
     COINIT_APARTMENTTHREADED,
@@ -168,11 +170,37 @@ fn hwnd_of(win: &WebviewWindow) -> Option<HWND> {
     win.hwnd().ok().map(|h| HWND(h.0 as _))
 }
 
-pub fn prepare(_win: &WebviewWindow) {}
+/// Window is 320pt square; the glass disk is the wheel's 300pt circle.
+const DISK_INSET: f64 = 10.0;
+const DISK_SIZE: f64 = 300.0;
+
+/// Acrylic blur behind the wheel (Windows 10 1809+ and 11).
+pub fn prepare(win: &WebviewWindow) {
+    let _ = win.set_effects(EffectsBuilder::new().effect(Effect::Acrylic).build());
+}
+
+pub fn native_glass() -> bool {
+    true
+}
+
+/// Acrylic fills the whole window, so cut the window to the wheel's circle.
+/// Redone on every show because the monitor (and its scale) can change.
+fn clip_to_disk(win: &WebviewWindow, hwnd: HWND) {
+    let s = win.scale_factor().unwrap_or(1.0);
+    let (a, b) = ((DISK_INSET * s) as i32, ((DISK_INSET + DISK_SIZE) * s) as i32 + 1);
+    unsafe {
+        let region = CreateEllipticRgn(a, a, b, b);
+        // The window owns the region from here on.
+        let _ = SetWindowRgn(hwnd, Some(region), true);
+    }
+}
 
 /// Mid-drag the wheel must appear without taking focus from Explorer, or the
 /// drag would be cancelled. From the shortcut it takes focus for the keys.
 pub fn present(win: &WebviewWindow, focus: bool) {
+    if let Some(hwnd) = hwnd_of(win) {
+        clip_to_disk(win, hwnd);
+    }
     if focus {
         let _ = win.show();
         let _ = win.set_focus();

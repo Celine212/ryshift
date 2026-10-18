@@ -21,3 +21,7 @@ pub fn cursor() -> Position {
 pub fn selected_files() -> Vec<PathBuf> {
     Vec::new()
 }
+
+pub fn native_glass() -> bool {
+    false
+}

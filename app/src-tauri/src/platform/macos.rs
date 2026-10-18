@@ -5,11 +5,14 @@
 //! pasteboard holds file URLs, a file is being dragged. These are all plain
 //! reads of global state, so no Accessibility permission is needed.
 
+use objc2::runtime::{AnyClass, AnyObject};
+use objc2::{msg_send, MainThreadOnly};
 use objc2_app_kit::{
-    NSEvent, NSEventModifierFlags, NSPasteboard, NSPasteboardNameDrag, NSScreen, NSWindow,
-    NSWindowCollectionBehavior,
+    NSAutoresizingMaskOptions, NSEvent, NSEventModifierFlags, NSGlassEffectView, NSPasteboard,
+    NSPasteboardNameDrag, NSScreen, NSView, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
+    NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowCollectionBehavior, NSWindowOrderingMode,
 };
-use objc2_foundation::{MainThreadMarker, NSString, NSURL};
+use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSSize, NSString, NSURL};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
@@ -88,9 +91,49 @@ fn ns_window(win: &WebviewWindow) -> Option<&NSWindow> {
     unsafe { ptr.as_ref() }
 }
 
+/// Window is 320pt square; the glass disk is the wheel's 300pt circle.
+const DISK_INSET: f64 = 10.0;
+const DISK_SIZE: f64 = 300.0;
+
+/// Put real glass behind the (transparent) web view, cut to the wheel's circle.
+/// macOS 26+ gets Liquid Glass, which refracts what's underneath; older
+/// versions get the standard frosted HUD blur.
+fn add_glass(w: &NSWindow) {
+    let (Some(mtm), Some(content)) = (MainThreadMarker::new(), w.contentView()) else { return };
+    let frame = NSRect::new(NSPoint::new(DISK_INSET, DISK_INSET), NSSize::new(DISK_SIZE, DISK_SIZE));
+    let radius = DISK_SIZE / 2.0;
+    let view: objc2::rc::Retained<NSView> = if AnyClass::get(c"NSGlassEffectView").is_some() {
+        let glass = NSGlassEffectView::initWithFrame(NSGlassEffectView::alloc(mtm), frame);
+        glass.setCornerRadius(radius);
+        objc2::rc::Retained::into_super(glass)
+    } else {
+        let blur = NSVisualEffectView::initWithFrame(NSVisualEffectView::alloc(mtm), frame);
+        blur.setMaterial(NSVisualEffectMaterial::HUDWindow);
+        blur.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+        blur.setState(NSVisualEffectState::Active);
+        blur.setWantsLayer(true);
+        unsafe {
+            let layer: *mut AnyObject = msg_send![&*blur, layer];
+            if !layer.is_null() {
+                let _: () = msg_send![layer, setCornerRadius: radius];
+                let _: () = msg_send![layer, setMasksToBounds: true];
+            }
+        }
+        objc2::rc::Retained::into_super(blur)
+    };
+    view.setAutoresizingMask(NSAutoresizingMaskOptions::empty());
+    content.addSubview_positioned_relativeTo(&view, NSWindowOrderingMode::Below, None);
+}
+
+/// The wheel sits on real OS glass here, so the UI skips its CSS stand-in.
+pub fn native_glass() -> bool {
+    true
+}
+
 /// Float the wheel above everything, on every Space and over full-screen apps.
 pub fn prepare(win: &WebviewWindow) {
     if let Some(w) = ns_window(win) {
+        add_glass(w);
         w.setLevel(POP_UP_MENU_LEVEL);
         w.setCollectionBehavior(
             NSWindowCollectionBehavior::CanJoinAllSpaces

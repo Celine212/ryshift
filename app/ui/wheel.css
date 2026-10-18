@@ -1,76 +1,136 @@
+/* Liquid glass wheel. The glass itself is real OS glass behind the window
+   (or #disk as a stand-in); this file only adds what sits on the glass:
+   specular rims, a soft sheen, hairline dividers, labels and the hovered
+   slice's tinted bubble. */
+
+/* Rynovi brand: ink #17330f, muted #5c6b55, purple #6f5be0, cream #fff8f1. */
+@font-face {
+  font-family: "Inter Tight";
+  src: url("fonts/InterTight.ttf") format("truetype");
+  font-weight: 100 900;
+}
+
 :root {
-  --slice: rgba(250, 226, 210, 0.94);
-  --slice-edge: rgba(255, 255, 255, 0.75);
-  --slice-text: #6b3420;
-  --hot: #e8553d;
-  --hot-text: #ffffff;
-  --hub: rgba(255, 244, 236, 0.97);
-  --hub-text: #6b3420;
-  --muted: #a5705a;
+  --label: #17330f;
+  --label-muted: rgba(92, 107, 85, 0.85);
+  --divider: rgba(255, 255, 255, 0.55);
+  --hub: rgba(255, 255, 255, 0.34);
+  --accent: rgba(111, 91, 224, 0.92);
+  --accent-label: #fff8f1;
+  --standin: rgba(255, 248, 241, 0.6);
+  --standin-edge: rgba(255, 255, 255, 0.6);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --slice: rgba(58, 40, 34, 0.94);
-    --slice-edge: rgba(255, 255, 255, 0.12);
-    --slice-text: #f6d9c8;
-    --hub: rgba(40, 28, 24, 0.97);
-    --hub-text: #f6d9c8;
-    --muted: #c49a86;
+    --label: #fff8f1;
+    --label-muted: rgba(255, 248, 241, 0.55);
+    --divider: rgba(255, 255, 255, 0.2);
+    --hub: rgba(255, 255, 255, 0.1);
+    --accent: rgba(124, 108, 240, 0.85);
+    --standin: rgba(36, 36, 40, 0.55);
+    --standin-edge: rgba(255, 255, 255, 0.18);
   }
 }
 
 html, body {
   margin: 0;
+  width: 320px;
+  height: 320px;
   background: transparent;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
   cursor: default;
-  font: 600 12px/1 -apple-system, "Segoe UI", system-ui, sans-serif;
+  font: 700 11.5px/1 "Inter Tight", -apple-system, "Segoe UI Variable", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-#wheel {
-  display: block;
+#root {
+  position: relative;
+  width: 320px;
+  height: 320px;
   opacity: 0;
-  transform: scale(0.6);
+  transform: scale(0.86);
   transform-origin: 160px 160px;
-  filter: drop-shadow(0 6px 16px rgba(80, 30, 10, 0.28));
 }
 
-#wheel.open {
+#root.open {
   opacity: 1;
   transform: scale(1);
-  transition: transform 170ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 110ms ease-out;
+  transition: transform 220ms cubic-bezier(0.32, 1.4, 0.5, 1), opacity 120ms ease-out;
 }
 
+/* Stand-in glass: frosted where the platform can blur (browsers), plain
+   translucent where it can't (a transparent Linux window). */
+#disk {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: var(--standin);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    inset 0 1px 1px var(--standin-edge),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.12),
+    0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+body.native-glass #disk { display: none; }
+
+#wheel {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: visible;
+}
+
+#sheen-disk { pointer-events: none; }
+
 .slice path {
-  fill: var(--slice);
-  stroke: var(--slice-edge);
-  stroke-width: 1;
-  transition: fill 90ms;
+  fill: rgba(255, 255, 255, 0.001); /* invisible but still hit-testable */
+  stroke: var(--divider);
+  stroke-width: 0.75;
+  transition: fill 120ms ease-out;
 }
 
 .slice text {
-  fill: var(--slice-text);
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  fill: var(--label);
+  letter-spacing: 0.05em;
   pointer-events: none;
+  transition: fill 120ms ease-out;
 }
 
 .slice .key {
-  fill: var(--muted);
+  fill: var(--label-muted);
   font-size: 9px;
   font-weight: 500;
 }
 
-.slice.hot path { fill: var(--hot); }
-.slice.hot text { fill: var(--hot-text); }
+/* The hovered slice becomes a tinted glass bubble with its own sheen. */
+.slice.hot path { fill: var(--accent); stroke: rgba(255, 255, 255, 0.6); }
+.slice.hot text { fill: var(--accent-label); }
+.slice .glow { fill: url(#hot-glow); opacity: 0; pointer-events: none; transition: opacity 120ms ease-out; }
+.slice.hot .glow { opacity: 1; }
 
-#hub { fill: var(--hub); stroke: var(--slice-edge); }
-#hub-top { fill: var(--hub-text); font-size: 13px; }
-#hub-bottom { fill: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: 0.06em; }
+#hub {
+  fill: var(--hub);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.rim {
+  fill: none;
+  stroke: url(#rim);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+#hub-top { fill: var(--label); font-size: 13.5px; font-weight: 800; letter-spacing: -0.01em; }
+#hub-bottom { fill: var(--label-muted); font-size: 9px; font-weight: 800; letter-spacing: 0.12em; }
 #hub-top, #hub-bottom { pointer-events: none; }
 
-#wheel.busy #hub { animation: pulse 0.9s ease-in-out infinite; }
-@keyframes pulse { 50% { fill: var(--slice); } }
+#root.busy #hub { animation: pulse 0.9s ease-in-out infinite; }
+@keyframes pulse { 50% { fill: var(--accent); } }

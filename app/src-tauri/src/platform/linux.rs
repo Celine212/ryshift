@@ -232,6 +232,11 @@ pub fn selected_files() -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
+/// No blur API for apps on Linux desktops; the UI draws a frosted stand-in.
+pub fn native_glass() -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

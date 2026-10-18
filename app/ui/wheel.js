@@ -9,6 +9,7 @@ const R_OUT = 150;      // outer edge
 const WHEELS = ["convert", "tools"];
 const WHEEL_NAMES = { convert: "CONVERT", tools: "TOOLS" };
 
+const rootEl = document.getElementById("root");
 const wheelEl = document.getElementById("wheel");
 const slicesEl = document.getElementById("slices");
 const hubTop = document.getElementById("hub-top");
@@ -63,14 +64,18 @@ function render() {
     const g = document.createElementNS(SVG, "g");
     g.setAttribute("class", "slice" + (i === state.hot ? " hot" : ""));
     g.dataset.index = i;
+    const d = n === 1 ? arc(0, Math.PI * 1.999, R_IN, R_OUT) : arc(a0, a1, R_IN, R_OUT);
     const path = document.createElementNS(SVG, "path");
-    path.setAttribute("d", n === 1 ? arc(0, Math.PI * 1.999, R_IN, R_OUT) : arc(a0, a1, R_IN, R_OUT));
+    path.setAttribute("d", d);
+    const glow = document.createElementNS(SVG, "path");
+    glow.setAttribute("class", "glow");
+    glow.setAttribute("d", d);
     const label = document.createElementNS(SVG, "text");
     label.setAttribute("x", C + rText * Math.cos(mid));
     label.setAttribute("y", C + rText * Math.sin(mid) + 4);
     label.setAttribute("text-anchor", "middle");
     label.textContent = action.title.toUpperCase();
-    g.append(path, label);
+    g.append(path, glow, label);
     if (state.mode === "shortcut") {
       const key = document.createElementNS(SVG, "text");
       key.setAttribute("class", "key");
@@ -107,7 +112,7 @@ function sliceAt(x, y) {
 }
 
 function hide() {
-  wheelEl.classList.remove("open", "busy");
+  rootEl.classList.remove("open", "busy");
   state.hot = -1;
   state.busy = false;
   tauri.core.invoke("hide_wheel");
@@ -124,15 +129,15 @@ async function runSlice(i, paths = state.paths) {
   state.busy = true;
   state.hot = i;
   render();
-  wheelEl.classList.add("busy");
+  rootEl.classList.add("busy");
   setHub(action.title, "WORKING…");
   try {
     const created = await tauri.core.invoke("run_action", { id: action.id, paths });
-    wheelEl.classList.remove("busy");
+    rootEl.classList.remove("busy");
     setHub("✓ Saved", created.length > 1 ? `${created.length} FILES` : shortName(created[0]).toUpperCase());
     setTimeout(hide, 750);
   } catch (err) {
-    wheelEl.classList.remove("busy");
+    rootEl.classList.remove("busy");
     setHub("✕ Failed", String(err).slice(0, 18).toUpperCase());
     console.error(err);
     setTimeout(hide, 1800);
@@ -151,12 +156,13 @@ function cycleWheel(step = 1) {
 tauri.event.listen("wheel:show", ({ payload }) => {
   state = { ...payload, wheel: "convert", hot: -1, busy: false };
   state.wheel = availableWheels()[0] || "convert";
+  document.body.classList.toggle("native-glass", !!payload.native_glass);
   render();
   // Restart the open animation. A forced layout instead of requestAnimationFrame,
   // because the window may still be hidden (no frames) when this event arrives.
-  wheelEl.classList.remove("open");
-  void wheelEl.getBoundingClientRect();
-  wheelEl.classList.add("open");
+  rootEl.classList.remove("open");
+  void rootEl.getBoundingClientRect();
+  rootEl.classList.add("open");
 });
 
 tauri.event.listen("wheel:cycle", () => cycleWheel());
@@ -189,7 +195,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 wheelEl.addEventListener("click", (e) => {
-  if (e.target.id === "hub" || e.target === wheelEl) hide();
+  if (e.target.id === "hub" || e.target === wheelEl || e.target.id === "sheen-disk") hide();
 });
 
 window.addEventListener("blur", () => { if (state.mode === "shortcut" && !state.busy) hide(); });
