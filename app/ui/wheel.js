@@ -1,11 +1,8 @@
-// The wheel: draws slices for the dragged files, highlights the one under the
-// cursor (or the dragged file), and runs it on drop or click.
-
 const tauri = window.__TAURI__;
 const SVG = "http://www.w3.org/2000/svg";
-const C = 160;          // centre of the 320px window
-const R_IN = 46;        // hub edge
-const R_OUT = 150;      // outer edge
+const C = 160;
+const R_IN = 46;
+const R_OUT = 150;
 const WHEELS = ["convert", "tools"];
 const WHEEL_NAMES = { convert: "CONVERT", tools: "TOOLS" };
 
@@ -33,12 +30,10 @@ function availableWheels() {
   return WHEELS.filter((w) => wheelActions(w).length > 0);
 }
 
-// Petals sit inside the glass disk, clear of the hub.
 const P_IN = 54;
 const P_OUT = 142;
-const P_ROUND = 8; // corner radius, made by a same-colour round-joined stroke
+const P_ROUND = 8;
 
-// Small line icons (24px grid), drawn for Ryshift.
 const ICONS = {
   image: '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l6-6 4 4 3-3 4 4"/>',
   doc: '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/>',
@@ -61,13 +56,10 @@ function iconFor(id) {
   return map[id] || (id.startsWith("convert.") ? "image" : "tool");
 }
 
-// One rounded petal: an annular sector drawn inset, which the thick round-joined
-// stroke (same colour) grows back out with soft corners and a gap to its neighbours.
 function petalPath(a0, a1, n) {
   const p = (a, r) => `${(C + r * Math.cos(a)).toFixed(2)} ${(C + r * Math.sin(a)).toFixed(2)}`;
   const ri = P_IN + P_ROUND, ro = P_OUT - P_ROUND;
   if (n === 1) {
-    // A single slice is a full ring.
     return `M${C + ro} ${C}A${ro} ${ro} 0 1 1 ${C - ro} ${C}A${ro} ${ro} 0 1 1 ${C + ro} ${C}Z` +
       `M${C + ri} ${C}A${ri} ${ri} 0 1 0 ${C - ri} ${C}A${ri} ${ri} 0 1 0 ${C + ri} ${C}Z`;
   }
@@ -98,7 +90,6 @@ function render() {
     const a0 = -Math.PI / 2 - Math.PI / n + (i * 2 * Math.PI) / n;
     const a1 = a0 + (2 * Math.PI) / n;
     const mid = (a0 + a1) / 2;
-    // Content centre: the middle of the petal, or the top of the ring for one slice.
     const rMid = 98;
     const cx = n === 1 ? C : C + rMid * Math.cos(mid);
     const cy = n === 1 ? C - rMid : C + rMid * Math.sin(mid);
@@ -143,7 +134,6 @@ function setHot(i) {
   render();
 }
 
-/// Which slice is under a point in window coordinates (-1 for hub or outside).
 function sliceAt(x, y) {
   const dx = x - C, dy = y - C;
   const r = Math.hypot(dx, dy);
@@ -170,7 +160,6 @@ async function runSlice(i, paths = state.paths) {
   const action = wheelActions()[i];
   if (!action || state.busy || !paths.length) return hide();
   if (action.panel) {
-    // Tools that need input open their editor window; the wheel's job is done.
     try {
       await tauri.core.invoke("open_panel", { panel: action.panel, path: paths[0] });
     } catch (err) {
@@ -210,8 +199,6 @@ tauri.event.listen("wheel:show", ({ payload }) => {
   state.wheel = availableWheels()[0] || "convert";
   document.body.classList.toggle("native-glass", !!payload.native_glass);
   render();
-  // Restart the open animation. A forced layout instead of requestAnimationFrame,
-  // because the window may still be hidden (no frames) when this event arrives.
   rootEl.classList.remove("open");
   void rootEl.getBoundingClientRect();
   rootEl.classList.add("open");
@@ -219,8 +206,6 @@ tauri.event.listen("wheel:show", ({ payload }) => {
 
 tauri.event.listen("wheel:cycle", () => cycleWheel());
 
-// The mouse came up somewhere. If the file was dropped on a slice the drop
-// handler is already running; otherwise the user let go elsewhere: close.
 tauri.event.listen("wheel:mouseup", () => {
   setTimeout(() => { if (!state.busy) hide(); }, 200);
 });
@@ -229,7 +214,6 @@ tauri.webview.getCurrentWebview().onDragDropEvent(({ payload }) => {
   const scale = state.drop_in_pixels ? window.devicePixelRatio || 1 : 1;
   const pos = payload.position ? { x: payload.position.x / scale, y: payload.position.y / scale } : null;
   if (payload.type === "enter" && payload.paths?.length && !state.paths.length) {
-    // Opened before the files were known (Wayland): fetch the slices now.
     state.paths = payload.paths;
     tauri.core.invoke("actions_for", { paths: payload.paths }).then(({ actions, size }) => {
       state.actions = actions;

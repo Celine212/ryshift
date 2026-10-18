@@ -1,9 +1,3 @@
-//! The only OS-specific part: spotting "a file is being dragged and Shift was
-//! pressed", placing the wheel above everything, and reading the selection.
-//!
-//! Each OS module provides the same five functions: `prepare`, `watch_drags`,
-//! `present`, `cursor` and `selected_files`.
-
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]

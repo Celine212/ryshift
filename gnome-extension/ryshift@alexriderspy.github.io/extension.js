@@ -1,17 +1,3 @@
-// Ryshift for GNOME on Wayland.
-//
-// Wayland doesn't let normal apps watch global input or place their own
-// windows, so this extension does those two jobs for the Ryshift app:
-//   1. It polls the pointer (position, button, Shift) from inside the Shell.
-//      Button held + moved + Shift pressed means "open the wheel".
-//   2. It tells the app over D-Bus, then moves the wheel window to the
-//      pointer and keeps it above other windows.
-// The dragged file is then dropped on the app's own window as a normal drop,
-// so the app gets the paths itself. The extension never touches files.
-//
-// It only polls while the Ryshift app is running, and stays idle on X11,
-// where the app watches drags itself.
-
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
@@ -25,7 +11,7 @@ const OBJECT_PATH = '/io/github/alexriderspy/Ryshift';
 const INTERFACE = 'io.github.alexriderspy.Ryshift';
 
 const WHEEL_TITLE = 'Ryshift';
-const WHEEL_SIZE = 320; // logical pixels, matches the app's window
+const WHEEL_SIZE = 320;
 const DRAG_THRESHOLD = 6;
 const POLL_MS = 16;
 
@@ -38,15 +24,14 @@ export default class RyshiftExtension extends Extension {
         this._settings = this.getSettings();
         this._drag = freshDrag();
         this._pollId = 0;
-        this._pending = null; // {x, y, focus}: where the next wheel window goes
-        this._wheel = null; // the app's wheel MetaWindow while it's shown
+        this._pending = null;
+        this._wheel = null;
 
         this._nameWatchId = Gio.bus_watch_name(
             Gio.BusType.SESSION, BUS_NAME, Gio.BusNameWatcherFlags.NONE,
             () => this._startPolling(),
             () => this._stopPolling());
 
-        // GTK re-creates the window each time it's shown, so watch for it.
         this._windowCreatedId = global.display.connect('window-created',
             (_display, window) => this._watchWindow(window));
 
@@ -75,7 +60,6 @@ export default class RyshiftExtension extends Extension {
     }
 
     _startPolling() {
-        // On X11 the app spots drags on its own.
         if (!Meta.is_wayland_compositor() || this._pollId)
             return;
         this._drag = freshDrag();
@@ -111,7 +95,6 @@ export default class RyshiftExtension extends Extension {
         if (d.down && !d.moved)
             d.moved = Math.abs(x - d.startX) > DRAG_THRESHOLD || Math.abs(y - d.startY) > DRAG_THRESHOLD;
 
-        // Shift pressed mid-drag: open the wheel, or switch wheels if it's open.
         if (d.moved && shift && !d.shift) {
             if (d.shown) {
                 this._call('Cycle');
@@ -140,8 +123,6 @@ export default class RyshiftExtension extends Extension {
     }
 
     _watchWindow(window) {
-        // The title can arrive just after the window is created, so check
-        // again when it's first shown.
         const shownId = window.connect('shown', () => {
             window.disconnect(shownId);
             if (!this._isWheel(window))
@@ -155,7 +136,6 @@ export default class RyshiftExtension extends Extension {
         });
     }
 
-    // Centre the wheel window on the pointer position we were given.
     _place() {
         const window = this._wheel;
         const target = this._pending;

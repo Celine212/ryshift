@@ -1,10 +1,3 @@
-//! macOS: watch the system drag pasteboard and the Shift key.
-//!
-//! When any app starts a drag, macOS bumps the change count of the shared
-//! "drag" pasteboard. If that happens while the mouse button is held and the
-//! pasteboard holds file URLs, a file is being dragged. These are all plain
-//! reads of global state, so no Accessibility permission is needed.
-
 use objc2::runtime::{AnyClass, AnyObject};
 use objc2::{msg_send, MainThreadOnly};
 use objc2_app_kit::{
@@ -18,7 +11,6 @@ use std::process::Command;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, LogicalPosition, Position, WebviewWindow};
 
-/// Above normal windows and the Dock, like a context menu.
 const POP_UP_MENU_LEVEL: isize = 101;
 
 #[derive(Default)]
@@ -59,8 +51,6 @@ pub fn watch_drags(app: AppHandle) {
             }
             if !down && st.mouse_down {
                 if st.shown {
-                    // The drop event reaches the wheel first; it hides itself
-                    // after this unless it's busy converting.
                     let _ = app.emit("wheel:mouseup", ());
                 }
                 st = DragState::default();
@@ -93,13 +83,9 @@ fn ns_window(win: &WebviewWindow) -> Option<&NSWindow> {
     unsafe { ptr.as_ref() }
 }
 
-/// Window is 320pt square; the glass disk is the wheel's 300pt circle.
 const DISK_INSET: f64 = 10.0;
 const DISK_SIZE: f64 = 300.0;
 
-/// Put real glass behind the (transparent) web view, cut to the wheel's circle.
-/// macOS 26+ gets Liquid Glass, which refracts what's underneath; older
-/// versions get the standard frosted HUD blur.
 fn add_glass(w: &NSWindow) {
     let (Some(mtm), Some(content)) = (MainThreadMarker::new(), w.contentView()) else { return };
     let frame = NSRect::new(NSPoint::new(DISK_INSET, DISK_INSET), NSSize::new(DISK_SIZE, DISK_SIZE));
@@ -127,12 +113,10 @@ fn add_glass(w: &NSWindow) {
     content.addSubview_positioned_relativeTo(&view, NSWindowOrderingMode::Below, None);
 }
 
-/// The wheel sits on real OS glass here, so the UI skips its CSS stand-in.
 pub fn native_glass() -> bool {
     true
 }
 
-/// Float the wheel above everything, on every Space and over full-screen apps.
 pub fn prepare(win: &WebviewWindow) {
     if let Some(w) = ns_window(win) {
         add_glass(w);
@@ -146,8 +130,6 @@ pub fn prepare(win: &WebviewWindow) {
     }
 }
 
-/// Mid-drag the wheel must appear without stealing focus from Finder. From
-/// the shortcut it takes focus so number keys and Esc work.
 pub fn present(win: &WebviewWindow, top_left: Position, focus: bool) {
     place(win, top_left);
     if focus {
@@ -168,8 +150,6 @@ fn primary_screen_height() -> f64 {
         .unwrap_or(0.0)
 }
 
-/// Move the window now, before it's shown. AppKit's origin is the bottom-left
-/// of the main screen, so flip y.
 fn place(win: &WebviewWindow, top_left: Position) {
     let (x, y) = match top_left {
         Position::Logical(p) => (p.x, p.y),
@@ -183,7 +163,6 @@ fn place(win: &WebviewWindow, top_left: Position) {
     }
 }
 
-/// Mouse position in top-left based screen points. Must run on the main thread.
 pub fn cursor() -> Position {
     let p = NSEvent::mouseLocation();
     LogicalPosition::new(p.x, primary_screen_height() - p.y).into()
@@ -197,7 +176,6 @@ repeat with f in sel
 end repeat
 return out"#;
 
-/// The files selected in Finder (or on the desktop).
 pub fn selected_files() -> Vec<PathBuf> {
     let Ok(out) = Command::new("/usr/bin/osascript").args(["-e", FINDER_SELECTION]).output() else {
         return Vec::new();

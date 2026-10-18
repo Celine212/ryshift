@@ -42,5 +42,4 @@ windows = { version = "0.61", features = [
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13"
 zbus = "5"
-# Same GTK as Tauri, for the clipboard.
 gtk = "0.18"

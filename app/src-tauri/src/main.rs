@@ -1,7 +1,5 @@
-// Release builds on Windows shouldn't open a console window.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-/// `RYSHIFT_DEBUG=1` prints what the drag watcher sees, for bug reports.
 macro_rules! debug {
     ($($arg:tt)*) => {
         if std::env::var_os("RYSHIFT_DEBUG").is_some() {
@@ -9,7 +7,7 @@ macro_rules! debug {
         }
     };
 }
-#[allow(unused_imports)] // only the macOS watcher logs so far
+#[allow(unused_imports)]
 pub(crate) use debug;
 
 mod platform;
@@ -23,14 +21,11 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use tauri::{AppHandle, Emitter, LogicalPosition, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
-/// ⌥ Space on Mac. Alt + Space is the window menu on Windows and GNOME, so
-/// those get Ctrl + Alt + Space.
 #[cfg(target_os = "macos")]
 const SHORTCUT: (Modifiers, &str) = (Modifiers::ALT, "⌥ Space");
 #[cfg(not(target_os = "macos"))]
 const SHORTCUT: (Modifiers, &str) = (Modifiers::CONTROL.union(Modifiers::ALT), "Ctrl + Alt + Space");
 
-/// The wheel window is a square this many points wide, centred on the cursor.
 const WHEEL_SIZE: f64 = 320.0;
 
 #[derive(Clone, Serialize)]
@@ -38,19 +33,11 @@ struct ShowPayload {
     paths: Vec<String>,
     actions: Vec<engine::ActionInfo>,
     size: u64,
-    /// "drag": opened mid-drag, the file arrives by drop.
-    /// "shortcut": opened from the selection, slices are clicked.
     mode: &'static str,
-    /// Drag positions from the web view are labelled physical pixels, but only
-    /// Windows really sends pixels; macOS and Linux send points. The UI
-    /// divides by the pixel ratio only when this is true.
     drop_in_pixels: bool,
-    /// The OS draws real glass behind the wheel (Liquid Glass / Acrylic), so
-    /// the UI skips its CSS stand-in disk.
     native_glass: bool,
 }
 
-/// Scale factor of the monitor containing a physical screen point.
 fn scale_at(app: &AppHandle, x: f64, y: f64) -> f64 {
     let monitors = app.available_monitors().unwrap_or_default();
     monitors
@@ -63,7 +50,6 @@ fn scale_at(app: &AppHandle, x: f64, y: f64) -> f64 {
         .unwrap_or(1.0)
 }
 
-/// Open the wheel centred on `at` (from `platform::cursor`) for these files.
 pub fn show_wheel(app: &AppHandle, paths: Vec<PathBuf>, at: Position, mode: &'static str) {
     let Some(win) = app.get_webview_window("wheel") else {
         debug!("show_wheel: no wheel window");
@@ -87,10 +73,6 @@ pub fn show_wheel(app: &AppHandle, paths: Vec<PathBuf>, at: Position, mode: &'st
             PhysicalPosition::new((x - half) as i32, (y - half) as i32).into()
         }
     };
-    // Also queued here so Tauri's own idea of the position stays current; the
-    // platform places the window directly too, because a queued move can land
-    // after the window is already on screen (the wheel then opened where Shift
-    // was pressed the time before).
     let _ = win.set_position(top_left);
     let _ = win.emit("wheel:show", payload);
     platform::present(&win, top_left, mode == "shortcut");
@@ -102,8 +84,6 @@ struct Slices {
     size: u64,
 }
 
-/// The wheel asks for its slices itself when it opened before the files were
-/// known (Wayland: the files only arrive once the drag enters the window).
 #[tauri::command]
 fn actions_for(paths: Vec<String>) -> Slices {
     let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
@@ -120,7 +100,6 @@ async fn run_action(id: String, paths: Vec<String>) -> Result<Vec<String>, Strin
         .map_err(|e| e.to_string())
 }
 
-/// Open an editor panel (crop, edit, annotate, addbg, redact) for one file.
 #[tauri::command]
 fn open_panel(app: AppHandle, panel: String, path: String) -> Result<(), String> {
     let title = match panel.as_str() {
@@ -131,7 +110,6 @@ fn open_panel(app: AppHandle, panel: String, path: String) -> Result<(), String>
         "redact" => "Redact",
         _ => return Err(format!("unknown panel {panel}")),
     };
-    // A fresh label each time, so opening one while the last is closing can't clash.
     static N: AtomicU32 = AtomicU32::new(0);
     let label = format!("editor-{}", N.fetch_add(1, Ordering::Relaxed));
     let init = format!("window.__RYSHIFT_EDIT__ = {};", serde_json::json!({ "mode": panel, "path": path }));
@@ -152,7 +130,6 @@ struct EditImage {
     data_url: String,
     width: u32,
     height: u32,
-    /// Format the result is saved in: "jpg" or "png".
     ext: &'static str,
     name: String,
 }
@@ -174,7 +151,6 @@ async fn load_for_edit(path: String) -> Result<EditImage, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Save the editor's result (base64 image bytes) next to the original.
 #[tauri::command]
 async fn save_edit(path: String, suffix: String, ext: String, data: String) -> Result<String, String> {
     let bytes = base64::engine::general_purpose::STANDARD.decode(data).map_err(|e| e.to_string())?;
@@ -192,7 +168,6 @@ fn hide_wheel(app: AppHandle) {
     }
 }
 
-/// Select files, press the shortcut, and the wheel opens at the mouse.
 fn open_from_selection(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
@@ -238,8 +213,6 @@ fn main() {
         )
         .invoke_handler(tauri::generate_handler![actions_for, run_action, hide_wheel, open_panel, load_for_edit, save_edit])
         .setup(|app| {
-            // Installers put Pdfium in the app's resources (`lib/`), whose
-            // location differs per OS and package type; point the engine there.
             if std::env::var_os("RYSHIFT_PDFIUM").is_none() {
                 if let Ok(dir) = app.path().resource_dir() {
                     std::env::set_var("RYSHIFT_PDFIUM", dir.join("lib"));
@@ -248,7 +221,6 @@ fn main() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             tray(app)?;
-            // Another app may already own the shortcut; dragging still works then.
             let shortcut = Shortcut::new(Some(SHORTCUT.0), Code::Space);
             if let Err(e) = app.global_shortcut().register(shortcut) {
                 eprintln!("Ryshift: couldn't register {}: {e}", SHORTCUT.1);

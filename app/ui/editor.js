@@ -1,22 +1,13 @@
-// Ryshift editor panels: Crop, Edit, Annotate, Add background, Redact.
-//
-// The app hands over one image (PDFs give page 1). Every edit happens here on
-// a canvas, kept in image coordinates, so the preview (scaled down to stay
-// fast) and the saved file (full size) come from the same drawing code.
-
 const tauri = window.__TAURI__;
 const PARAMS = window.__RYSHIFT_EDIT__ || {};
 const $ = (id) => document.getElementById(id);
 const view = $("view");
 const ctx = view.getContext("2d");
 
-/** Longest side of the on-screen preview canvas, in canvas pixels. */
 const VIEW_MAX = 1600;
 
-/** Rynovi colours for drawing tools. */
 const INKS = ["#6f5be0", "#b4446c", "#3f8e2e", "#17330f", "#f4c45a", "#ffffff"];
 
-/** Add-background choices: two stops make a diagonal gradient, one is solid. */
 const BACKGROUNDS = [
   ["#7c6cf0", "#4b55d8"],
   ["#f3e4cf", "#d9c19f"],
@@ -29,13 +20,11 @@ const BACKGROUNDS = [
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-let img = null;            // the decoded source image
-let src = null;            // { width, height, ext, name }
-let doc = { w: 1, h: 1 };  // size of the image being produced, in output pixels
-let k = 1;                 // preview canvas pixels per output pixel
+let img = null;
+let src = null;
+let doc = { w: 1, h: 1 };
+let k = 1;
 let mode = null;
-
-// ---------- small UI builders ----------
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -48,7 +37,6 @@ function group(title, ...children) {
   return el("div", { className: "group" }, [title ? el("h2", { textContent: title }) : "", ...children]);
 }
 
-/** A row of toggle buttons. `onPick(value)` fires on click. */
 function chips(options, current, onPick) {
   const row = el("div", { className: "chips" });
   const buttons = options.map(([label, value]) => {
@@ -65,7 +53,6 @@ function chips(options, current, onPick) {
   return row;
 }
 
-/** One-shot buttons (Undo, Rotate…). */
 function actions(list) {
   return el("div", { className: "chips" }, list.map(([label, fn]) => {
     const b = el("button", { type: "button", textContent: label });
@@ -105,9 +92,6 @@ function setStatus(text, error = false) {
   $("status").classList.toggle("error", error);
 }
 
-// ---------- canvas plumbing ----------
-
-/** Size the output image; the preview canvas follows, scaled to stay fast. */
 function setDoc(w, h) {
   doc = { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
   k = Math.min(1, VIEW_MAX / Math.max(doc.w, doc.h));
@@ -116,7 +100,6 @@ function setDoc(w, h) {
   fit();
 }
 
-/** Show the preview canvas as large as the stage allows, keeping its shape. */
 function fit() {
   const stage = $("stage").getBoundingClientRect();
   const room = { w: Math.max(50, stage.width - 32), h: Math.max(50, stage.height - 32) };
@@ -125,13 +108,11 @@ function fit() {
   view.style.height = `${Math.round(view.height * s)}px`;
 }
 
-/** Pointer position in output pixels. */
 function toDoc(e) {
   const r = view.getBoundingClientRect();
   return { x: ((e.clientX - r.left) / r.width) * doc.w, y: ((e.clientY - r.top) / r.height) * doc.h };
 }
 
-/** How many output pixels one screen pixel covers (for handle sizes). */
 function screenUnit() {
   const r = view.getBoundingClientRect();
   return r.width ? doc.w / r.width : 1;
@@ -144,12 +125,9 @@ function render() {
   setStatus(mode.status());
 }
 
-/** A size that looks the same on small and huge images (≈1px on an 800px image). */
 function unit() {
   return Math.max(src.width, src.height) / 800;
 }
-
-// ---------- Crop ----------
 
 const Crop = {
   title: "Crop image",
@@ -174,7 +152,6 @@ const Crop = {
   setRatio(v) {
     this.ratio = v === "original" ? src.width / src.height : v;
     if (!this.ratio) return render();
-    // Largest box of that shape, centred on the current box, inside the image.
     const cx = this.rect.x + this.rect.w / 2, cy = this.rect.y + this.rect.h / 2;
     let w = src.width, h = w / this.ratio;
     if (h > src.height) { h = src.height; w = h * this.ratio; }
@@ -182,7 +159,6 @@ const Crop = {
     render();
   },
 
-  /** Shift (and if needed shrink) a box so it sits inside the image. */
   inBounds(r) {
     let { x, y, w, h } = r;
     if (w > src.width) { w = src.width; if (this.ratio) h = w / this.ratio; }
@@ -227,7 +203,6 @@ const Crop = {
     }
   },
 
-  /** A freshly drawn box can't start outside the image. */
   clipNew(r) {
     const x0 = clamp(r.x, 0, src.width), y0 = clamp(r.y, 0, src.height);
     let w = clamp(r.x + r.w, 0, src.width) - x0, h = clamp(r.y + r.h, 0, src.height) - y0;
@@ -245,10 +220,8 @@ const Crop = {
     if (name.includes("s")) b = clamp(b + dy, t + min, src.height);
     if (!this.ratio) return { x: l, y: t, w: r - l, h: b - t };
 
-    // Keep the shape: the dragged axis decides, the opposite side stays put.
     let w = r - l, h = b - t;
     if (name === "n" || name === "s") w = h * this.ratio; else h = w / this.ratio;
-    // Room available from the fixed side (or centre) in each direction.
     const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
     const roomW = name.includes("w") ? r : name.includes("e") ? src.width - l : 2 * Math.min(cx, src.width - cx);
     const roomH = name.includes("n") ? b : name.includes("s") ? src.height - t : 2 * Math.min(cy, src.height - cy);
@@ -303,8 +276,6 @@ const Crop = {
 
   status() { return "Saves next to the original"; },
 };
-
-// ---------- Edit ----------
 
 const Edit = {
   title: "Edit image",
@@ -366,8 +337,6 @@ const Edit = {
   status() { return `${doc.w} × ${doc.h} px`; },
 };
 
-/** Brightness, contrast and saturation (each −100…100), in place. Done by hand
- *  so it works the same in every web view (canvas filters aren't everywhere). */
 function adjustPixels(px, bright, contrast, sat) {
   const b = bright * 2.55;
   const cv = contrast * 2.55;
@@ -383,8 +352,6 @@ function adjustPixels(px, bright, contrast, sat) {
     px[i + 2] = gray + (bl - gray) * s;
   }
 }
-
-// ---------- Annotate ----------
 
 const Annotate = {
   title: "Annotate",
@@ -433,7 +400,7 @@ const Annotate = {
     this.live = null;
     if (!m) return;
     const [a, b] = [m.points[0], m.points[m.points.length - 1]];
-    if (m.type !== "pen" && Math.hypot(b.x - a.x, b.y - a.y) < 3 * unit()) return; // a click, not a drag
+    if (m.type !== "pen" && Math.hypot(b.x - a.x, b.y - a.y) < 3 * unit()) return;
     this.marks.push(m);
   },
 
@@ -484,12 +451,10 @@ function drawMark(c, m) {
   c.restore();
 }
 
-// ---------- Add background ----------
-
 const AddBg = {
   title: "Add background",
   suffix: "With Background",
-  ext: "png", // keeps the rounded corners crisp
+  ext: "png",
   bg: 0,
   shape: 1,
   padding: 12,
@@ -537,7 +502,6 @@ const AddBg = {
     const u = unit();
     const x = (doc.w - src.width) / 2, y = (doc.h - src.height) / 2;
     const radius = Math.min(this.corners * u, src.width / 2, src.height / 2);
-    // Shadow from a solid rounded card under the image.
     if (this.shadow) {
       c.save();
       c.shadowColor = `rgba(20, 10, 60, ${(0.45 * this.shadow) / 100})`;
@@ -559,8 +523,6 @@ const AddBg = {
 
   status() { return `${doc.w} × ${doc.h} px`; },
 };
-
-// ---------- Redact ----------
 
 const Redact = {
   title: "Redact",
@@ -610,7 +572,6 @@ const Redact = {
   status() { return `${this.boxes.length} area${this.boxes.length === 1 ? "" : "s"} hidden`; },
 };
 
-/** Blocky copy of one area of the source image. */
 function pixelate(c, b) {
   const block = Math.max(6, Math.round(Math.min(b.w, b.h) / 5));
   const tw = Math.max(1, Math.round(b.w / block)), th = Math.max(1, Math.round(b.h / block));
@@ -629,11 +590,8 @@ function normalize(a, b) {
   return { x, y, w: clamp(Math.max(a.x, b.x), 0, src.width) - x, h: clamp(Math.max(a.y, b.y), 0, src.height) - y };
 }
 
-// ---------- saving ----------
-
 const MODES = { crop: Crop, edit: Edit, annotate: Annotate, addbg: AddBg, redact: Redact };
 
-/** Draw the full-size result and return it as base64 bytes. */
 async function exportImage() {
   const { w, h } = mode.outputSize();
   const out = document.createElement("canvas");
@@ -672,8 +630,6 @@ function close() {
   tauri.window.getCurrentWindow().close();
 }
 
-// ---------- start ----------
-
 async function init() {
   mode = MODES[PARAMS.mode];
   if (!mode) return setStatus(`Unknown editor: ${PARAMS.mode}`, true);
@@ -698,12 +654,11 @@ async function init() {
   img.src = src.data_url;
 }
 
-// Track the drag ourselves; pointer capture is a bonus where the web view allows it.
 let dragging = false;
 view.addEventListener("pointerdown", (e) => {
   if (!mode?.down || !img || e.button > 0) return;
   dragging = true;
-  try { view.setPointerCapture(e.pointerId); } catch { /* synthetic or unsupported */ }
+  try { view.setPointerCapture(e.pointerId); } catch {  }
   mode.down(toDoc(e));
   render();
 });

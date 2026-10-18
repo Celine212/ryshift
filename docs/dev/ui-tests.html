@@ -1,10 +1,4 @@
 <!doctype html>
-<!-- Automated UI tests for the wheel and every editor panel.
-     Serve the repo root (python3 -m http.server) and open /docs/dev/ui-tests.html.
-     Each test loads the real UI in an iframe (with the fake backend from
-     wheel-preview.html / editor-preview.html), drives it with pointer and
-     keyboard events, and checks what would be saved, pixel by pixel.
-     window.testResults holds the outcome when it's done. -->
 <html>
 <head>
   <meta charset="utf-8" />
@@ -30,7 +24,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function waitFor(fn, what = "condition", timeout = 5000) {
   const t0 = Date.now();
   while (Date.now() - t0 < timeout) {
-    try { const v = fn(); if (v) return v; } catch { /* not ready */ }
+    try { const v = fn(); if (v) return v; } catch {  }
     await sleep(20);
   }
   throw new Error(`timed out waiting for ${what}`);
@@ -56,11 +50,9 @@ async function openWheel() {
   return w;
 }
 
-// --- editor helpers ---
 function ptr(w, type, target, x, y) {
   target.dispatchEvent(new w.PointerEvent(type, { clientX: x, clientY: y, bubbles: true, pointerId: 1, button: 0, buttons: type === "pointerup" ? 0 : 1 }));
 }
-/** Drag between two points given in output-image pixels. */
 function drag(w, from, to, steps = 6) {
   const view = w.document.getElementById("view");
   const r = view.getBoundingClientRect();
@@ -117,7 +109,6 @@ async function decode(entry) {
 const RED = [255, 0, 0], GREEN = [0, 255, 0], BLUE = [0, 0, 255], WHITE = [255, 255, 255], BLACK = [0, 0, 0];
 const near = (a, b, tol = 14) => b.every((v, i) => Math.abs(a[i] - v) <= tol);
 
-// --- wheel helpers ---
 const TOOLS = [
   { id: "tool.crop", title: "Crop", wheel: "tools", panel: "crop" },
   { id: "tool.compress", title: "Compress", wheel: "tools", panel: null },
@@ -136,9 +127,7 @@ const petalCentre = (i, n) => {
 };
 const hotTitle = (w) => w.document.querySelector(".slice.hot text")?.textContent;
 
-// ================= tests =================
 const TESTS = [
-  // ---------- Wheel ----------
   ["Wheel: draws one rounded petal with an icon and label per action", async (t) => {
     const w = await openWheel(); showWheel(w, [...CONVERT, ...TOOLS]);
     t.eq(w.document.querySelectorAll(".slice").length, 3, "convert wheel shows 3 petals");
@@ -228,7 +217,6 @@ const TESTS = [
     t.eq(w.eval("sliceAt(160, 62)"), 0, "the ring is hit-testable");
   }],
 
-  // ---------- Crop ----------
   ["Crop: dragging a corner crops to that box", async (t) => {
     const w = await openEditor("mode=crop");
     t.eq(w.document.getElementById("title").textContent, "Crop image", "title");
@@ -245,7 +233,7 @@ const TESTS = [
     const w = await openEditor("mode=crop");
     button(w, "1:1");
     t.eq(w.document.querySelector(".dims").textContent, "800 × 800 px", "largest square");
-    drag(w, [600, 400], [1600, 400]); // push far right
+    drag(w, [600, 400], [1600, 400]);
     const out = await save(w);
     t.eq(`${out.w}x${out.h}`, "800x800", "still square");
     t.ok(near(out.px(5, 5), RED) && near(out.px(300, 5), GREEN) && near(out.px(795, 795), WHITE), "box sits at the right edge (x 400–1200)");
@@ -253,7 +241,7 @@ const TESTS = [
   ["Crop: ratio holds while resizing from a corner and an edge", async (t) => {
     const w = await openEditor("mode=crop");
     button(w, "16:9");
-    drag(w, [1200, 737.5], [900, 600]); // bottom-right corner inwards
+    drag(w, [1200, 737.5], [900, 600]);
     let r = w.eval("Crop.rect");
     t.ok(Math.abs(r.w / r.h - 16 / 9) < 0.01, `corner keeps 16:9 (${(r.w / r.h).toFixed(3)})`);
     const s = w.eval("Crop.handles().s");
@@ -264,8 +252,8 @@ const TESTS = [
   }],
   ["Crop: drawing a new box outside the old one", async (t) => {
     const w = await openEditor("mode=crop");
-    drag(w, [1200, 800], [300, 200]); // shrink to top-left
-    drag(w, [700, 500], [1000, 700]); // new box in the white quarter
+    drag(w, [1200, 800], [300, 200]);
+    drag(w, [700, 500], [1000, 700]);
     const out = await save(w);
     t.eq(`${out.w}x${out.h}`, "300x200", "new box size");
     t.ok(near(out.px(150, 100), WHITE), "white quarter");
@@ -278,7 +266,7 @@ const TESTS = [
     button(w, "Free");
     t.eq(w.eval("Crop.ratio"), null, "free");
     drag(w, [1200, 800], [600, 400]);
-    drag(w, [900, 700], [902, 701]); // a click outside: no 2px box
+    drag(w, [900, 700], [902, 701]);
     t.eq(JSON.stringify(w.eval("Crop.rect")), JSON.stringify({ x: 0, y: 0, w: 600, h: 400 }), "box unchanged");
   }],
   ["Crop: JPG photo saves as JPG; PDF says page 1", async (t) => {
@@ -300,7 +288,6 @@ const TESTS = [
     t.ok(w.closedByApp && w.saved.length === 0, "Escape closes without saving");
   }],
 
-  // ---------- Edit ----------
   ["Edit: rotate right turns the image a quarter clockwise", async (t) => {
     const w = await openEditor("mode=edit");
     button(w, "⟳ Right");
@@ -346,22 +333,21 @@ const TESTS = [
     t.eq(w.document.querySelector("label.slider output").textContent, "0", "untouched slider reads 0");
   }],
 
-  // ---------- Annotate ----------
   ["Annotate: arrow, box, pen, highlight in the chosen colour", async (t) => {
     const w = await openEditor("mode=annotate");
-    swatch(w, "Colour", 0); // purple
-    drag(w, [700, 500], [1100, 700]); // arrow over the white quarter
+    swatch(w, "Colour", 0);
+    drag(w, [700, 500], [1100, 700]);
     button(w, "Box");
     drag(w, [650, 450], [1150, 780]);
     button(w, "Pen");
     drag(w, [700, 760], [1100, 760], 12);
     button(w, "Highlight");
-    swatch(w, "Colour", 4); // amber
+    swatch(w, "Colour", 4);
     drag(w, [650, 600], [1150, 600]);
     t.eq(status(w), "4 marks", "four marks");
     const out = await save(w);
     const purple = [0x6f, 0x5b, 0xe0];
-    const hl = out.px(1050, 600); // only the highlight is here (the arrow crosses y=600 at x=900)
+    const hl = out.px(1050, 600);
     t.ok(hl[0] > 235 && hl[2] < 225 && hl[2] > 120, `highlight tints amber, doesn't cover (${hl.slice(0, 3)})`);
     t.ok(near(out.px(1150, 615), purple, 30), "box edge is purple");
     t.ok(near(out.px(900, 760), purple, 30), "pen stroke is purple");
@@ -370,7 +356,7 @@ const TESTS = [
   }],
   ["Annotate: text, undo, clear, and clicks don't make empty marks", async (t) => {
     const w = await openEditor("mode=annotate");
-    click(w, [800, 600]); // arrow tool, no drag
+    click(w, [800, 600]);
     t.eq(status(w), "0 marks", "a click isn't an arrow");
     button(w, "Text");
     setText(w, "this one!");
@@ -390,7 +376,6 @@ const TESTS = [
     t.eq(status(w), "0 marks", "blank text isn't placed");
   }],
 
-  // ---------- Add background ----------
   ["Add BG: default square, purple gradient, rounded corners, PNG", async (t) => {
     const w = await openEditor("mode=addbg&ext=jpg");
     const out = await save(w);
@@ -425,7 +410,6 @@ const TESTS = [
     t.ok(near(out.px(3, 3), [0x17, 0x33, 0x0f], 4), "solid ink");
   }],
 
-  // ---------- Redact ----------
   ["Redact: black boxes hide the area completely", async (t) => {
     const w = await openEditor("mode=redact");
     drag(w, [650, 50], [1150, 350]);
@@ -451,7 +435,6 @@ const TESTS = [
     t.eq(status(w), "0 areas hidden", "clear");
   }],
 
-  // ---------- errors ----------
   ["Errors: a file that can't load, and a save that fails", async (t) => {
     let w = await load("editor-preview.html?mode=crop&fail=load");
     await waitFor(() => w.document.getElementById("status").textContent.includes("Couldn't open"), "load error");

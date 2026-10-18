@@ -1,15 +1,3 @@
-//! Linux on X11: spot a file drag through the X drag-and-drop protocol (XDND).
-//!
-//! An app that starts a drag takes ownership of the `XdndSelection` selection
-//! and serves the dragged files from it as `text/uri-list`. So a drag is: the
-//! left button is down, the mouse moved, and `XdndSelection` changed hands (or
-//! was re-acquired) since the button went down. Pointer position, buttons and
-//! Shift all come from one `QueryPointer` request, so no input grabbing.
-//!
-//! Wayland doesn't let apps see global input. There the GNOME Shell extension
-//! in `gnome-extension/` spots the drag and drives the wheel through the
-//! D-Bus service in `dbus.rs`, which runs on X11 too (it's harmless there).
-
 use super::{dbus, fallback};
 use gtk::prelude::*;
 use std::path::PathBuf;
@@ -23,7 +11,6 @@ use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
 use x11rb::{CURRENT_TIME, NONE};
 
-/// Pixels the mouse must move with the button down before it counts as a drag.
 const DRAG_THRESHOLD: i32 = 6;
 
 fn on_x11() -> bool {
@@ -36,7 +23,6 @@ fn on_x11() -> bool {
 struct X {
     conn: RustConnection,
     root: Window,
-    /// An invisible window that receives selection contents.
     win: Window,
     prop: Atom,
 }
@@ -72,7 +58,6 @@ impl X {
             .unwrap_or(NONE)
     }
 
-    /// Ask the selection's owner for its contents as `target`.
     fn convert(&self, selection: Atom, target: Atom) -> Option<Vec<u8>> {
         self.conn.convert_selection(self.win, selection, target, self.prop, CURRENT_TIME).ok()?;
         self.conn.flush().ok()?;
@@ -119,8 +104,6 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// `file:///home/a/My%20File.pdf` lines -> paths. Other lines are ignored, so
-/// this also reads GNOME's `copy\nfile://…` clipboard format.
 fn parse_uris(bytes: &[u8]) -> Vec<PathBuf> {
     String::from_utf8_lossy(bytes)
         .lines()
@@ -142,12 +125,9 @@ struct DragState {
     shift: bool,
 }
 
-/// Requests from the GNOME Shell extension (Wayland).
 fn handle(app: &AppHandle, request: dbus::Request) {
     match request {
         dbus::Request::Show { x, y, shortcut: false } => {
-            // The files aren't known until they enter the wheel window; the
-            // UI asks for the slices then.
             let handle = app.clone();
             let at: Position = LogicalPosition::new(x, y).into();
             let _ = app.run_on_main_thread(move || crate::show_wheel(&handle, Vec::new(), at, "drag"));
@@ -193,8 +173,6 @@ pub fn watch_drags(app: AppHandle) {
             let shift = mask.contains(KeyButMask::SHIFT);
 
             if down && !st.mouse_down {
-                // Remember who owned the drag selection before this press, so a
-                // stale owner from an earlier drag isn't mistaken for a new one.
                 let owner = x.owner(xdnd);
                 let stamp = (owner != NONE).then(|| x.convert(xdnd, timestamp)).flatten();
                 st = DragState { mouse_down: true, start: (px, py), owner, stamp, shift, ..Default::default() };
@@ -235,7 +213,6 @@ pub fn prepare(win: &WebviewWindow) {
     fallback::prepare(win);
 }
 
-/// GTK applies the queued move before the queued show, so nothing extra here.
 pub fn present(win: &WebviewWindow, _top_left: Position, focus: bool) {
     let _ = win.show();
     if focus {
@@ -252,10 +229,6 @@ pub fn cursor() -> Position {
     fallback::cursor()
 }
 
-/// Linux file managers don't expose their selection, so the shortcut uses the
-/// files on the clipboard: select files, press Ctrl+C, then the shortcut.
-/// GTK's clipboard works on both X11 and Wayland; it must be used on the GTK
-/// main thread, so this hops there and waits (call it from another thread).
 pub fn selected_files() -> Vec<PathBuf> {
     let (tx, rx) = std::sync::mpsc::channel();
     gtk::glib::MainContext::default().invoke(move || {
@@ -266,7 +239,6 @@ pub fn selected_files() -> Vec<PathBuf> {
     rx.recv_timeout(Duration::from_secs(2)).unwrap_or_default()
 }
 
-/// No blur API for apps on Linux desktops; the UI draws a frosted stand-in.
 pub fn native_glass() -> bool {
     false
 }

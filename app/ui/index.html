@@ -7,12 +7,9 @@
 </head>
 <body>
   <div id="root">
-    <!-- Frosted stand-in for systems without native glass (Linux). On macOS
-         and Windows the OS draws real glass behind this transparent window. -->
     <div id="disk"></div>
     <svg id="wheel" viewBox="0 0 320 320" width="320" height="320" aria-label="Ryshift">
       <defs>
-        <!-- Specular rim: bright where light hits (top-left, bottom-right), thin elsewhere. -->
         <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stop-color="#fff" stop-opacity="0.95" />
           <stop offset="0.3" stop-color="#fff" stop-opacity="0.18" />

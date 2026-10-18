@@ -1,11 +1,3 @@
-//! Windows: spot a file drag that starts in Explorer or on the desktop.
-//!
-//! Windows has no shared "drag pasteboard" to watch, so a drag is: the left
-//! button went down on an Explorer window (or the desktop) and the mouse moved
-//! past the system drag threshold. Explorer drags whatever is selected, so the
-//! files come from that window's selection, read through the Shell COM API.
-//! Everything here is polling of global state: no hooks, no admin rights.
-
 use std::path::PathBuf;
 use std::time::Duration;
 use tauri::window::{Effect, EffectsBuilder};
@@ -29,10 +21,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOWNOACTIVATE,
 };
 
-/// `CSIDL_DESKTOP`: the desktop's location for `FindWindowSW`.
 const CSIDL_DESKTOP: i32 = 0;
 
-/// An integer VARIANT, for the index arguments of `IShellWindows`.
 fn variant_i32(v: i32) -> VARIANT {
     let mut var = VARIANT::default();
     unsafe {
@@ -61,12 +51,10 @@ fn class_name(hwnd: HWND) -> String {
     String::from_utf16_lossy(&buf[..len.max(0) as usize])
 }
 
-/// The desktop's icons live in a window of class Progman or WorkerW.
 fn is_desktop(root: HWND) -> bool {
     matches!(class_name(root).as_str(), "Progman" | "WorkerW")
 }
 
-/// The top-level window a drag would start from, if it can hold files.
 fn file_window_at(p: POINT) -> Option<HWND> {
     let root = unsafe { GetAncestor(WindowFromPoint(p), GA_ROOT) };
     let class = class_name(root);
@@ -128,7 +116,6 @@ pub fn watch_drags(app: AppHandle) {
     });
 }
 
-/// The selected files in one Explorer window, or on the desktop.
 fn explorer_selection(root: HWND) -> Vec<PathBuf> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
@@ -170,11 +157,9 @@ fn hwnd_of(win: &WebviewWindow) -> Option<HWND> {
     win.hwnd().ok().map(|h| HWND(h.0 as _))
 }
 
-/// Window is 320pt square; the glass disk is the wheel's 300pt circle.
 const DISK_INSET: f64 = 10.0;
 const DISK_SIZE: f64 = 300.0;
 
-/// Acrylic blur behind the wheel (Windows 10 1809+ and 11).
 pub fn prepare(win: &WebviewWindow) {
     let _ = win.set_effects(EffectsBuilder::new().effect(Effect::Acrylic).build());
 }
@@ -183,22 +168,16 @@ pub fn native_glass() -> bool {
     true
 }
 
-/// Acrylic fills the whole window, so cut the window to the wheel's circle.
-/// Redone on every show because the monitor (and its scale) can change.
 fn clip_to_disk(win: &WebviewWindow, hwnd: HWND) {
     let s = win.scale_factor().unwrap_or(1.0);
     let (a, b) = ((DISK_INSET * s) as i32, ((DISK_INSET + DISK_SIZE) * s) as i32 + 1);
     unsafe {
         let region = CreateEllipticRgn(a, a, b, b);
-        // The window owns the region from here on.
         let _ = SetWindowRgn(hwnd, Some(region), true);
     }
 }
 
-/// Mid-drag the wheel must appear without taking focus from Explorer, or the
-/// drag would be cancelled. From the shortcut it takes focus for the keys.
 pub fn present(win: &WebviewWindow, top_left: Position, focus: bool) {
-    // Placed directly: a queued move could land after the window is shown.
     let (x, y) = match top_left {
         Position::Physical(p) => (p.x, p.y),
         Position::Logical(p) => {
@@ -223,13 +202,11 @@ pub fn present(win: &WebviewWindow, top_left: Position, focus: bool) {
     }
 }
 
-/// Mouse position in physical pixels (the app is per-monitor DPI aware).
 pub fn cursor() -> Position {
     let p = cursor_point();
     PhysicalPosition::new(p.x, p.y).into()
 }
 
-/// The files selected in the Explorer window (or desktop) in front.
 pub fn selected_files() -> Vec<PathBuf> {
     let root = unsafe { GetAncestor(GetForegroundWindow(), GA_ROOT) };
     explorer_selection(root)

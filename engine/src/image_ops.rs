@@ -49,14 +49,11 @@ impl Format {
         }
     }
 
-    /// HEIC goes through the OS codec, so it only works where the OS has one.
     pub fn readable(self) -> bool {
         self != Format::Heic || heic_supported()
     }
 }
 
-/// HEIC is read and written with macOS's built-in `sips` for now; Windows and
-/// Linux get it through libheif in a later milestone.
 pub fn heic_supported() -> bool {
     cfg!(target_os = "macos")
 }
@@ -76,16 +73,12 @@ fn sips(args: &[&str]) -> Result<()> {
     }
 }
 
-/// PNG bytes for handing an image to the editor; fast compression, since it
-/// never touches disk.
 pub fn png_bytes(img: &DynamicImage) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     img.write_with_encoder(PngEncoder::new_with_quality(&mut out, CompressionType::Fast, FilterType::Adaptive))?;
     Ok(out)
 }
 
-/// Decode any supported image, turned the right way up (phone photos store
-/// their rotation in EXIF).
 pub fn load(path: &Path) -> Result<DynamicImage> {
     if Format::from_ext(path.extension().and_then(|e| e.to_str()).unwrap_or("")) == Some(Format::Heic) {
         let tmp = temp_path("png");
@@ -101,7 +94,6 @@ pub fn load(path: &Path) -> Result<DynamicImage> {
     Ok(img)
 }
 
-/// JPG has no transparency, so see-through pixels become white instead of black.
 pub(crate) fn flatten_on_white(img: &DynamicImage) -> image::RgbImage {
     let rgba = img.to_rgba8();
     let mut bg = RgbaImage::from_pixel(rgba.width(), rgba.height(), Rgba([255, 255, 255, 255]));
@@ -149,21 +141,17 @@ pub fn save(img: &DynamicImage, out: &Path, format: Format, quality: u8) -> Resu
     Ok(())
 }
 
-/// Centre crop to a width:height ratio.
 fn crop_to_ratio(img: &DynamicImage, rw: u32, rh: u32) -> DynamicImage {
     let (w, h) = (img.width(), img.height());
     let (cw, ch) = if w * rh > h * rw { (h * rw / rh, h) } else { (w, w * rh / rw) };
     img.crop_imm((w - cw) / 2, (h - ch) / 2, cw, ch)
 }
 
-/// Tools-wheel actions on a single image. The result keeps the original's
-/// format where we can write it, otherwise PNG.
 pub fn tool(path: &Path, src: Format, tool: &str) -> Result<PathBuf> {
     let img = load(path)?;
     let keep = if matches!(src, Format::Heic) && !heic_supported() { Format::Png } else { src };
     let (result, suffix, format, quality) = match tool {
         "compress" => {
-            // Lossless sources gain little from re-encoding, so they become JPG.
             let fmt = if matches!(src, Format::Jpg | Format::Png | Format::Heic) { keep } else { Format::Jpg };
             (img, "Compressed", fmt, 70)
         }

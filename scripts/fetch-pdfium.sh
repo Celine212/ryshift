@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Downloads the prebuilt Pdfium library (from bblanchon/pdfium-binaries) into lib/.
-# Usage: scripts/fetch-pdfium.sh [mac-arm64|mac-x64|win-x64|win-arm64|linux-x64|linux-arm64]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

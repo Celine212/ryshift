@@ -1,12 +1,4 @@
 <!doctype html>
-<!-- Dev preview of an editor panel in a normal browser, with a fake Tauri backend.
-     Serve the repo root (python3 -m http.server) and open
-     /docs/dev/editor-preview.html?mode=crop   (crop | edit | annotate | addbg | redact)
-     Options: &ext=jpg (photo source), &name=Scan.pdf, &fail=load
-     The test image is 1200 × 800 with solid quarters:
-       top-left red, top-right green, bottom-left blue, bottom-right white.
-     What "Save" would write is pushed onto window.saved; closing the window
-     sets window.closedByApp (window.closed itself is read-only in browsers). -->
 <html>
 <head>
   <meta charset="utf-8" />

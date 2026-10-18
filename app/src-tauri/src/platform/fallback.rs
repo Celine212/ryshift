@@ -1,7 +1,3 @@
-//! Desktops without a drag watcher yet (Ubuntu on Wayland until the GNOME
-//! extension lands in M3). The app still runs: the shortcut opens the wheel,
-//! and files dropped onto the open wheel are processed.
-
 use std::path::PathBuf;
 use tauri::{AppHandle, PhysicalPosition, Position, WebviewWindow};
 

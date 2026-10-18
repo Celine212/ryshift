@@ -22,20 +22,16 @@
   .still .cap { padding: 10px 14px 12px; font-size: 12.5px; color: var(--muted); }
   .still .cap b { color: var(--ink); }
 
-  /* Desktop backdrops so the glass has something to sit on */
   .desk { position: relative; height: 380px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .desk.light { background: radial-gradient(circle at 18% 22%, #ffd36e 0 16%, transparent 17%), radial-gradient(circle at 82% 78%, #8fc3ef 0 20%, transparent 21%), linear-gradient(135deg, #f3b13d, #ef8fb0 55%, #b9a6f2); }
   .desk.dark { background: radial-gradient(circle at 25% 75%, #4b55d8 0 18%, transparent 19%), radial-gradient(circle at 80% 25%, #b4446c 0 16%, transparent 17%), linear-gradient(135deg, #1d1b2e, #2a1f3a 50%, #13241b); }
   .file { position: absolute; left: 34px; top: 46%; width: 54px; text-align: center; font-size: 10.5px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
   .file .doc { width: 44px; height: 54px; margin: 0 auto 4px; border-radius: 4px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
 
-  /* The wheel: real glass in the app; here a frosted stand-in */
   .wheel { position: relative; width: 320px; height: 320px; }
   .wheel .disk { position: absolute; inset: 10px; border-radius: 50%; background: rgba(255, 248, 241, 0.32); backdrop-filter: blur(20px) saturate(170%); -webkit-backdrop-filter: blur(20px) saturate(170%); box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 14px 34px rgba(0,0,0,.22); }
   .dark .wheel .disk { background: rgba(30, 28, 36, 0.42); box-shadow: inset 0 1px 1px rgba(255,255,255,.22), 0 14px 34px rgba(0,0,0,.4); }
   .wheel svg { position: absolute; inset: 0; overflow: visible; }
-  /* Solid fill + same-colour round stroke, faded as one layer (opacity), so the
-     stroke and fill don't double up where they overlap. */
   .petal { fill: #fff; stroke: #fff; stroke-width: 16; stroke-linejoin: round; opacity: 0.6; }
   .dark .petal { opacity: 0.13; }
   .petal.hot, .dark .petal.hot { fill: #6f5be0; stroke: #6f5be0; opacity: 0.95; }
@@ -54,7 +50,6 @@
   .chip { position: absolute; left: 50%; top: 50%; transform: translate(-150px, 120px); background: #2f6fe0; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
   .cursor { position: absolute; left: 50%; top: 50%; }
 
-  /* Editor window mockups */
   .win { background: var(--cream); display: flex; flex-direction: column; height: 430px; }
   .win header { padding: 12px 16px 8px; display: flex; gap: 8px; align-items: baseline; }
   .win header b { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
@@ -78,7 +73,6 @@
   .btn { border: 1px solid var(--line); border-radius: 9px; padding: 6px 12px; font-size: 12px; font-weight: 600; background: transparent; }
   .btn.p { background: var(--purple); border-color: var(--purple); color: var(--cream); font-weight: 800; padding: 6px 16px; }
 
-  /* Sample "document" image */
   .sheet { position: relative; width: 210px; height: 270px; background: #fff; box-shadow: 0 6px 18px rgba(23,51,15,.14); padding: 18px 16px; }
   .sheet .ln { height: 5px; border-radius: 3px; background: #d9d2c6; margin: 0 0 7px; }
   .sheet .ln.h { height: 9px; background: #17330f; width: 60%; margin-bottom: 12px; }
@@ -111,11 +105,9 @@ const ICONS = {
   redact: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 20L20 4"/>',
 };
 
-// One rounded petal: an annular sector drawn smaller, then a thick round-joined
-// stroke in the same colour grows it back with soft corners.
 function petalPath(cx, cy, a0, a1, r0, r1, round) {
   const ri = r0 + round, ro = r1 - round;
-  const pad = (r) => (round + 3) / r; // keep a visible gap between petals
+  const pad = (r) => (round + 3) / r;
   const p = (a, r) => `${(cx + r * Math.cos(a)).toFixed(2)} ${(cy + r * Math.sin(a)).toFixed(2)}`;
   const b0o = a0 + pad(ro), b1o = a1 - pad(ro), b0i = a0 + pad(ri), b1i = a1 - pad(ri);
   const large = b1o - b0o > Math.PI ? 1 : 0;
@@ -166,7 +158,6 @@ wheelStill("light", CONVERT, 0, "1.2 MB", "CONVERT", "<b>Convert wheel</b> · Sh
 wheelStill("light", TOOLS, 0, "Crop", "DROP TO RUN", "<b>Tools wheel</b> · tap Shift again. The same seven tools as the reel.", "Page 001 Cropped.jpg");
 wheelStill("dark", TOOLS, 5, "Add BG", "DROP TO RUN", "<b>Dark mode</b> · the petals turn smoky, labels cream.", null);
 
-// ---- Editor panel mockups ----
 function sheet(extra = "") {
   return `<div class="sheet"><div class="ln h"></div>${'<div class="ln"></div>'.repeat(14)}${extra}</div>`;
 }
@@ -181,7 +172,6 @@ const chips = (list, on) => `<div class="chips">${list.map((c, i) => `<span clas
 const slider = (name, v, shown) => `<div class="sl"><div><span>${name}</span><span>${shown}</span></div><i style="--v:${v}%"></i></div>`;
 const swatches = (list, on) => `<div class="chips">${list.map((c, i) => `<span class="sw${i === on ? " on" : ""}" style="background:${c}"></span>`).join("")}</div>`;
 
-// Crop
 panel("Crop image", "Page 001.pdf · page 1",
   sheet(`<div style="position:absolute;inset:0;background:rgba(23,51,15,.45);clip-path:polygon(0 0,100% 0,100% 100%,0 100%,0 8%,8% 8%,8% 58%,92% 58%,92% 8%,0 8%)"></div>
          <div style="position:absolute;left:8%;top:8%;width:84%;height:50%;border:2px solid #fff8f1;box-shadow:0 0 0 1px rgba(0,0,0,.2)">
@@ -191,7 +181,6 @@ panel("Crop image", "Page 001.pdf · page 1",
   g("Ratio", chips(["Free", "1:1", "4:5", "9:16", "16:9", "Original"], 0)) + g("Size", `<b>1190 × 960 px</b>`) + `<p style="color:#5c6b55;font-size:11px">Drag the box or its corners. Drag outside to start a new box.</p>`,
   "Saves next to the original", "Crop");
 
-// Edit
 panel("Edit image", "Photo.heic",
   `<div style="width:250px;height:180px;border-radius:4px;background:linear-gradient(160deg,#ffd36e,#ef8fb0 60%,#6f5be0);filter:brightness(1.08) contrast(1.1) saturate(1.25);box-shadow:0 6px 18px rgba(23,51,15,.14)"></div>`,
   g("Rotate & flip", chips(["⟲ Left", "⟳ Right", "⇋ Flip", "⇵ Flip"], -1)) +
@@ -199,7 +188,6 @@ panel("Edit image", "Photo.heic",
   g("Size", chips(["100%", "75%", "50%", "25%"], 0)),
   "4032 × 3024 px", "Save");
 
-// Annotate
 panel("Annotate", "Screenshot.png",
   sheet(`<svg viewBox="0 0 210 270" style="position:absolute;inset:0">
            <rect x="20" y="52" width="120" height="34" rx="4" fill="none" stroke="#6f5be0" stroke-width="3"/>
@@ -211,7 +199,6 @@ panel("Annotate", "Screenshot.png",
   g("Thickness", slider("", 40, "4 px")) + g("", chips(["Undo", "Clear"], -1)),
   "4 marks", "Save");
 
-// Add background
 panel("Add background", "Screenshot.png",
   `<div style="width:270px;height:270px;background:linear-gradient(135deg,#7c6cf0,#4b55d8);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(23,51,15,.14)">
      <div style="width:190px;height:140px;background:#fff;border-radius:14px;box-shadow:0 18px 36px rgba(20,10,60,.4);padding:14px">${'<div style="height:5px;border-radius:3px;background:#d9d2c6;margin:0 0 7px"></div>'.repeat(9)}</div></div>`,
@@ -220,7 +207,6 @@ panel("Add background", "Screenshot.png",
   g("Style", slider("Padding", 45, "12%") + slider("Corners", 35, "24 px") + slider("Shadow", 60, "60")),
   "1600 × 1600 px", "Save");
 
-// Redact
 panel("Redact", "Bank statement.pdf · page 1",
   sheet(`<div style="position:absolute;left:16px;top:60px;width:120px;height:12px;background:#111"></div>
          <div style="position:absolute;left:16px;top:96px;width:150px;height:12px;background:#111"></div>

@@ -65,7 +65,6 @@ fn editors_only_offered_for_a_single_file() {
     let has_crop = |paths: &[PathBuf]| engine::actions_for(paths).iter().any(|x| x.id == "tool.crop");
     assert!(has_crop(&[a.clone()]));
     assert!(!has_crop(&[a.clone(), b.clone()]));
-    // One-click tools still batch.
     assert!(engine::actions_for(&[a, b]).iter().any(|x| x.id == "tool.compress"));
 }
 
@@ -127,5 +126,5 @@ fn image_to_pdf_round_trips_through_pdfium() {
     };
     assert_eq!(jpgs, vec![dir.path().join("scan.jpg")]);
     let img = image::open(&jpgs[0]).unwrap();
-    assert_eq!((img.width(), img.height()), (300, 150)); // 200px at 0.75pt/px, rendered at 2x
+    assert_eq!((img.width(), img.height()), (300, 150));
 }

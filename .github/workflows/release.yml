@@ -1,9 +1,5 @@
 name: Release
 
-# Push a version tag (git tag v0.2.0 && git push origin v0.2.0) to build every
-# installer and attach them to a *draft* GitHub Release, which you publish by hand.
-# Run it manually ("Run workflow") to test the builds without making a release;
-# the installers are then kept as workflow artifacts.
 on:
   push:
     tags: ["v*"]
@@ -60,19 +56,10 @@ jobs:
         working-directory: app
         run: npm ci
 
-      # The PDF engine for *this* target gets bundled from lib/.
       - name: Fetch Pdfium
         shell: bash
         run: scripts/fetch-pdfium.sh ${{ matrix.pdfium }}
 
-      # Optional code signing. Each value is only exported when its secret exists,
-      # so unsigned builds work out of the box. Secrets to add for signed builds:
-      #   macOS:   APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
-      #            APPLE_SIGNING_IDENTITY, and for notarising APPLE_ID,
-      #            APPLE_PASSWORD (app-specific password), APPLE_TEAM_ID
-      #   Updates: TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-      # Windows signing (e.g. Azure Trusted Signing) is set up through
-      # bundle.windows.signCommand in tauri.conf.json when you have a certificate.
       - name: Signing secrets (optional)
         shell: bash
         env:
@@ -99,7 +86,6 @@ jobs:
         with:
           projectPath: app
           args: --target ${{ matrix.target }}
-          # Only a tag push makes a (draft) release.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Ryshift ${{ github.ref_name }}
           releaseBody: |

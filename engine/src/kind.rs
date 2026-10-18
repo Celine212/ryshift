@@ -1,7 +1,6 @@
 use crate::image_ops::Format;
 use std::path::Path;
 
-/// What sort of file this is, which decides which slices appear.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Image(Format),

@@ -1,6 +1,3 @@
-//! `ryshift list <files…>`          show the slices available for these files
-//! `ryshift run <action> <files…>`  run one, e.g. `ryshift run convert.jpg scan.pdf`
-
 use std::path::PathBuf;
 use std::process::ExitCode;
 

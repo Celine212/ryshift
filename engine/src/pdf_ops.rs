@@ -1,6 +1,3 @@
-//! Reading PDFs through Pdfium (the PDF engine inside Chrome). The library is
-//! a separate download (`scripts/fetch-pdfium.sh`) bundled next to the app.
-
 use crate::image_ops::{self, Format};
 use crate::{naming, Error, Result};
 use pdfium_render::prelude::*;
@@ -11,7 +8,6 @@ fn pdf_err(e: PdfiumError) -> Error {
     Error::Pdf(e.to_string())
 }
 
-/// Folders to look in for the Pdfium library, most specific first.
 fn search_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Some(p) = std::env::var_os("RYSHIFT_PDFIUM") {
@@ -22,11 +18,11 @@ fn search_dirs() -> Vec<PathBuf> {
             dirs.push(dir.to_path_buf());
             dirs.push(dir.join("lib"));
             dirs.push(dir.join("../lib"));
-            dirs.push(dir.join("../Resources/lib")); // inside a macOS .app
-            dirs.push(dir.join("../lib/ryshift")); // Linux packages
+            dirs.push(dir.join("../Resources/lib"));
+            dirs.push(dir.join("../lib/ryshift"));
         }
     }
-    dirs.push(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../lib"))); // dev checkout
+    dirs.push(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../lib")));
     dirs
 }
 
@@ -50,7 +46,6 @@ fn pdfium() -> Result<&'static Pdfium> {
         .map_err(|e| Error::Pdf(e.clone()))
 }
 
-/// One image per page: `Doc.pdf` -> `Doc.jpg`, or `Doc p1.jpg`, `Doc p2.jpg`, …
 pub fn to_images(path: &Path, format: Format) -> Result<Vec<PathBuf>> {
     let doc = pdfium()?.load_pdf_from_file(path, None).map_err(pdf_err)?;
     let pages = doc.pages();
@@ -67,7 +62,6 @@ pub fn to_images(path: &Path, format: Format) -> Result<Vec<PathBuf>> {
     Ok(out)
 }
 
-/// Render one page at 2x, the same scale as PDF -> image conversion.
 pub fn render_page(path: &Path, index: PdfPageIndex) -> Result<image::DynamicImage> {
     let doc = pdfium()?.load_pdf_from_file(path, None).map_err(pdf_err)?;
     let page = doc.pages().get(index).map_err(pdf_err)?;

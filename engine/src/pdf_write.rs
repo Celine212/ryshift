@@ -1,13 +1,9 @@
-//! A tiny PDF writer: one JPEG image per page. Enough for "image → PDF"
-//! without pulling in a full PDF library.
-
 use crate::Result;
 use image::codecs::jpeg::JpegEncoder;
 use image::DynamicImage;
 use std::io::Write;
 use std::path::Path;
 
-/// Points per pixel: treat images as 96 dpi so pages come out a sensible size.
 const PT_PER_PX: f32 = 0.75;
 
 pub fn write_images(images: &[DynamicImage], out: &Path) -> Result<()> {
@@ -15,7 +11,6 @@ pub fn write_images(images: &[DynamicImage], out: &Path) -> Result<()> {
     let mut offsets: Vec<usize> = Vec::new();
     buf.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
 
-    // Object numbers: 1 catalog, 2 page tree, then (page, contents, image) per image.
     let page_obj = |i: usize| 3 + i * 3;
     let kids: Vec<String> = (0..images.len()).map(|i| format!("{} 0 R", page_obj(i))).collect();
 

@@ -1,16 +1,10 @@
 <!doctype html>
-<!-- Dev preview of the wheel UI in a normal browser, with a fake Tauri backend.
-     Serve the repo root (python3 -m http.server) and open /docs/dev/wheel-preview.html.
-     It loads the real app/ui/index.html, so it always matches the app.
-     Console helpers: emit("wheel:show", {...}), drag("over"|"drop", x, y).
-     Add ?demo to the URL to open a sample wheel straight away. -->
 <html>
 <head>
   <meta charset="utf-8" />
   <title>Wheel preview</title>
   <link rel="stylesheet" href="../../app/ui/wheel.css" />
   <style>
-    /* A busy "desktop" behind the wheel so the glass has something to bend. */
     html { width: auto !important; height: auto !important; }
     body {
       width: 360px !important;
@@ -44,7 +38,6 @@
       webview: { getCurrentWebview: () => ({ onDragDropEvent: (fn) => { onDrop = fn; } }) },
     };
     window.emit = (name, payload) => listeners[name]({ payload });
-    // Positions in points, like macOS sends them.
     window.drag = (type, x, y, paths = []) => onDrop({ payload: { type, position: { x, y }, paths } });
 
     const SAMPLE = {
@@ -65,7 +58,6 @@
       native_glass: false,
     };
 
-    // Load the real markup, then the real script.
     fetch("../../app/ui/index.html")
       .then((r) => r.text())
       .then((html) => {
