@@ -83,6 +83,8 @@ jobs:
       - name: Build installers
         id: build
         uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: app
           args: --target ${{ matrix.target }}
