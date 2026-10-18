@@ -64,6 +64,38 @@ gnome-extensions install --force dist/ryshift@alexriderspy.github.io.shell-exten
 
 Log out and back in, then turn on **Ryshift** in the Extensions app. The Ryshift app must be running too. CI also builds the extension zip on every push (the `ryshift-gnome-extension` artifact).
 
+## Install
+
+Download the file for your system from the [latest release](https://github.com/alexriderspy/ryshift/releases/latest).
+
+**macOS** (Apple Silicon: `Ryshift_…_aarch64.dmg`, Intel: `Ryshift_…_x64.dmg`)
+1. Open the DMG and drag **Ryshift** into **Applications**.
+2. The first time, **right-click Ryshift → Open**, then **Open** again. Builds aren't notarised yet, so a normal double-click is blocked once.
+3. Ryshift appears in the menu bar. The first time you press ⌥ Space, allow it to control Finder.
+
+**Windows 10/11** (`Ryshift_…_x64-setup.exe` or `.msi`)
+1. Run the installer. If SmartScreen says "Windows protected your PC", click **More info → Run anyway** (builds aren't signed yet).
+2. Ryshift starts in the system tray.
+
+**Ubuntu** (`ryshift_…_amd64.deb` or `Ryshift_…_amd64.AppImage`)
+
+```bash
+sudo apt install ./ryshift_*_amd64.deb
+```
+
+Or make the AppImage executable (`chmod +x Ryshift_*.AppImage`) and run it. On the default **Wayland** session, also install the GNOME extension from the same release (see [Ubuntu on Wayland](#ubuntu-on-wayland)).
+
+## Releasing (maintainers)
+
+Bump `version` in `app/src-tauri/tauri.conf.json`, then push a tag:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The **Release** workflow builds every installer (macOS Apple Silicon and Intel, Windows `.exe` and `.msi`, Ubuntu `.deb` and AppImage) plus the GNOME extension zip, and attaches them to a **draft** release to check and publish by hand. Run the workflow manually ("Run workflow") to test the builds without a release. Code signing turns on by adding the secrets listed in `.github/workflows/release.yml`.
+
 ## Build from source
 
 You need [Rust](https://rustup.rs) and Node.js 18+. On Linux, also install the [Tauri system packages](https://v2.tauri.app/start/prerequisites/#linux).

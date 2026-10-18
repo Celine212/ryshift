@@ -1,0 +1,143 @@
+name: Release
+
+# Push a version tag (git tag v0.2.0 && git push origin v0.2.0) to build every
+# installer and attach them to a *draft* GitHub Release, which you publish by hand.
+# Run it manually ("Run workflow") to test the builds without making a release;
+# the installers are then kept as workflow artifacts.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            os: macos-latest
+            target: aarch64-apple-darwin
+            pdfium: mac-arm64
+          - name: macOS (Intel)
+            os: macos-latest
+            target: x86_64-apple-darwin
+            pdfium: mac-x64
+          - name: Windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            pdfium: win-x64
+          - name: Ubuntu
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            pdfium: linux-x64
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install the Tauri CLI
+        working-directory: app
+        run: npm ci
+
+      # The PDF engine for *this* target gets bundled from lib/.
+      - name: Fetch Pdfium
+        shell: bash
+        run: scripts/fetch-pdfium.sh ${{ matrix.pdfium }}
+
+      # Optional code signing. Each value is only exported when its secret exists,
+      # so unsigned builds work out of the box. Secrets to add for signed builds:
+      #   macOS:   APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
+      #            APPLE_SIGNING_IDENTITY, and for notarising APPLE_ID,
+      #            APPLE_PASSWORD (app-specific password), APPLE_TEAM_ID
+      #   Updates: TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+      # Windows signing (e.g. Azure Trusted Signing) is set up through
+      # bundle.windows.signCommand in tauri.conf.json when you have a certificate.
+      - name: Signing secrets (optional)
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            value="${!name}"
+            if [ -n "$value" ]; then
+              { echo "$name<<RYSHIFT_EOF"; echo "$value"; echo "RYSHIFT_EOF"; } >> "$GITHUB_ENV"
+              echo "using $name"
+            fi
+          done
+
+      - name: Build installers
+        id: build
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: app
+          args: --target ${{ matrix.target }}
+          # Only a tag push makes a (draft) release.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: Ryshift ${{ github.ref_name }}
+          releaseBody: |
+            Drag a file, press Shift, drop it on a wheel.
+            See the README for install steps on each system.
+          releaseDraft: true
+          prerelease: false
+
+      - name: Keep installers (test builds)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ryshift-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            target/${{ matrix.target }}/release/bundle/msi/*.msi
+            target/${{ matrix.target }}/release/bundle/deb/*.deb
+            target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+
+  gnome-extension:
+    needs: installers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack
+        run: |
+          sudo apt-get update && sudo apt-get install -y libglib2.0-bin zip
+          scripts/pack-gnome-extension.sh
+      - name: Attach to the draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" dist/*.shell-extension.zip --clobber --repo "${{ github.repository }}"
+      - name: Keep the zip (test builds)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ryshift-gnome-extension
+          path: dist/*.shell-extension.zip

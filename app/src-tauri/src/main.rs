@@ -238,6 +238,13 @@ fn main() {
         )
         .invoke_handler(tauri::generate_handler![actions_for, run_action, hide_wheel, open_panel, load_for_edit, save_edit])
         .setup(|app| {
+            // Installers put Pdfium in the app's resources (`lib/`), whose
+            // location differs per OS and package type; point the engine there.
+            if std::env::var_os("RYSHIFT_PDFIUM").is_none() {
+                if let Ok(dir) = app.path().resource_dir() {
+                    std::env::set_var("RYSHIFT_PDFIUM", dir.join("lib"));
+                }
+            }
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             tray(app)?;

@@ -34,7 +34,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis", "deb", "appimage"],
+    "targets": ["app", "dmg", "nsis", "msi", "deb", "appimage"],
     "category": "Utility",
     "shortDescription": "Drag a file, hold Shift, drop it on a wheel",
     "icon": [
