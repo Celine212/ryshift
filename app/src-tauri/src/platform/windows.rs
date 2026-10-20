@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use std::time::Duration;
-use tauri::window::{Effect, EffectsBuilder};
-use tauri::{AppHandle, Emitter, PhysicalPosition, Position, WebviewWindow};
+use std::sync::atomic::Ordering;
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Position, WebviewWindow};
 use windows::core::Interface;
-use windows::Win32::Foundation::{HWND, POINT};
+use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::{CreateEllipticRgn, SetWindowRgn};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, IDispatch, IServiceProvider, CLSCTX_ALL,
@@ -16,7 +16,7 @@ use windows::Win32::UI::Shell::{
     ShellWindows, SIGDN_FILESYSPATH, SVGIO_SELECTION, SWC_DESKTOP, SWFO_NEEDDISPATCH,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetAncestor, GetClassNameW, GetCursorPos, GetForegroundWindow, GetSystemMetrics, SetWindowPos,
+    GetAncestor, GetClassNameW, GetCursorPos, GetForegroundWindow, GetSystemMetrics, GetWindowRect, SetWindowPos,
     ShowWindow, WindowFromPoint, GA_ROOT, HWND_TOPMOST, SM_CXDRAG, SM_CYDRAG, SWP_NOACTIVATE,
     SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOWNOACTIVATE,
 };
@@ -69,6 +69,21 @@ struct DragState {
     dragging: bool,
     shown: bool,
     shift: bool,
+    last: (i32, i32),
+}
+
+/// Where the cursor is, measured from the wheel window's top-left corner (physical pixels).
+fn pointer_in_wheel(app: &AppHandle, p: POINT) -> Option<(i32, i32)> {
+    let hwnd = hwnd_of(&app.get_webview_window("wheel")?)?;
+    let mut r = RECT::default();
+    unsafe { GetWindowRect(hwnd, &mut r).ok()? };
+    Some((p.x - r.left, p.y - r.top))
+}
+
+#[derive(Clone, serde::Serialize)]
+struct Pointer {
+    x: i32,
+    y: i32,
 }
 
 pub fn watch_drags(app: AppHandle) {
@@ -90,10 +105,24 @@ pub fn watch_drags(app: AppHandle) {
             }
             if !down && st.mouse_down {
                 if st.shown {
-                    let _ = app.emit("wheel:mouseup", ());
+                    // Send where the button was released, so the wheel can run the slice
+                    // under the cursor even when Windows (or another drag tool such as
+                    // Huawei Superhub) never hands the drop to the wheel window.
+                    let at = pointer_in_wheel(&app, p).map(|(x, y)| Pointer { x, y });
+                    let _ = app.emit("wheel:mouseup", at);
+                    let gen = crate::WHEEL_GEN.load(Ordering::SeqCst);
+                    crate::hide_wheel_later(&app, gen, 1500);
                 }
                 st = DragState::default();
                 continue;
+            }
+            if st.shown && (p.x, p.y) != st.last {
+                // Drive the hover highlight from the real cursor position instead of
+                // drag-over events, which some PCs don't deliver to the wheel.
+                st.last = (p.x, p.y);
+                if let Some((x, y)) = pointer_in_wheel(&app, p) {
+                    let _ = app.emit("wheel:pointer", Pointer { x, y });
+                }
             }
             if st.mouse_down && !st.dragging && st.source.is_some() {
                 st.dragging = (p.x - st.start.0).abs() > tx || (p.y - st.start.1).abs() > ty;
@@ -160,12 +189,13 @@ fn hwnd_of(win: &WebviewWindow) -> Option<HWND> {
 const DISK_INSET: f64 = 10.0;
 const DISK_SIZE: f64 = 300.0;
 
-pub fn prepare(win: &WebviewWindow) {
-    let _ = win.set_effects(EffectsBuilder::new().effect(Effect::Acrylic).build());
+pub fn prepare(_win: &WebviewWindow) {
+    // Acrylic is left off: on some Windows 10 PCs it drew the wheel as a blank
+    // gray square. The wheel's own translucent disk is used instead.
 }
 
 pub fn native_glass() -> bool {
-    true
+    false
 }
 
 fn clip_to_disk(win: &WebviewWindow, hwnd: HWND) {
