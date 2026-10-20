@@ -33,6 +33,16 @@ pub static WHEEL_GEN: AtomicU32 = AtomicU32::new(0);
 /// True while a conversion runs, so the safety net doesn't hide the "Working" wheel.
 pub static WHEEL_BUSY: AtomicBool = AtomicBool::new(false);
 
+/// Hide the wheel window. On Windows the transparent window can leave a
+/// "ghost" slice of the wheel painted on the desktop, so it is parked
+/// off-screen and the spot under it is repainted.
+pub fn conceal(win: &tauri::WebviewWindow) {
+    #[cfg(target_os = "windows")]
+    platform::park_and_hide(win);
+    #[cfg(not(target_os = "windows"))]
+    let _ = win.hide();
+}
+
 /// Hide the wheel from the Rust side after `ms`, unless it reopened or is busy.
 /// This is a safety net: on some PCs the web view stops drawing and its own
 /// hide() never runs, which left a stuck gray square on screen.
@@ -46,7 +56,7 @@ pub fn hide_wheel_later(app: &AppHandle, gen: u32, ms: u64) {
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || {
             if let Some(win) = handle.get_webview_window("wheel") {
-                let _ = win.hide();
+                conceal(&win);
             }
         });
     });
@@ -131,8 +141,10 @@ async fn run_action(app: AppHandle, id: String, paths: Vec<String>) -> Result<Ve
         .map_err(|e| e.to_string())
 }
 
+// Must be async: on Windows, creating a window inside a synchronous command
+// deadlocks, so the Crop / Edit / Annotate / Add BG / Redact editors never opened.
 #[tauri::command]
-fn open_panel(app: AppHandle, panel: String, path: String) -> Result<(), String> {
+async fn open_panel(app: AppHandle, panel: String, path: String) -> Result<(), String> {
     let title = match panel.as_str() {
         "crop" => "Crop image",
         "edit" => "Edit image",
@@ -195,7 +207,7 @@ async fn save_edit(path: String, suffix: String, ext: String, data: String) -> R
 #[tauri::command]
 fn hide_wheel(app: AppHandle) {
     if let Some(win) = app.get_webview_window("wheel") {
-        let _ = win.hide();
+        conceal(&win);
     }
 }
 
@@ -226,7 +238,7 @@ fn tray(app: &tauri::App) -> tauri::Result<()> {
             } else if event.id() == "hide" {
                 WHEEL_BUSY.store(false, Ordering::SeqCst);
                 if let Some(win) = app.get_webview_window("wheel") {
-                    let _ = win.hide();
+                    conceal(&win);
                 }
             }
         });
