@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use base64::Engine as _;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use tauri::{AppHandle, Emitter, LogicalPosition, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
@@ -27,6 +27,30 @@ const SHORTCUT: (Modifiers, &str) = (Modifiers::ALT, "⌥ Space");
 const SHORTCUT: (Modifiers, &str) = (Modifiers::CONTROL.union(Modifiers::ALT), "Ctrl + Alt + Space");
 
 const WHEEL_SIZE: f64 = 320.0;
+
+/// Bumped every time the wheel opens, so a delayed "hide" never closes a newer wheel.
+pub static WHEEL_GEN: AtomicU32 = AtomicU32::new(0);
+/// True while a conversion runs, so the safety net doesn't hide the "Working" wheel.
+pub static WHEEL_BUSY: AtomicBool = AtomicBool::new(false);
+
+/// Hide the wheel from the Rust side after `ms`, unless it reopened or is busy.
+/// This is a safety net: on some PCs the web view stops drawing and its own
+/// hide() never runs, which left a stuck gray square on screen.
+pub fn hide_wheel_later(app: &AppHandle, gen: u32, ms: u64) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+        if WHEEL_GEN.load(Ordering::SeqCst) != gen || WHEEL_BUSY.load(Ordering::SeqCst) {
+            return;
+        }
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Some(win) = handle.get_webview_window("wheel") {
+                let _ = win.hide();
+            }
+        });
+    });
+}
 
 #[derive(Clone, Serialize)]
 struct ShowPayload {
@@ -56,6 +80,8 @@ pub fn show_wheel(app: &AppHandle, paths: Vec<PathBuf>, at: Position, mode: &'st
         return;
     };
     debug!("show_wheel: {} file(s), mode {mode}, at {at:?}", paths.len());
+    WHEEL_GEN.fetch_add(1, Ordering::SeqCst);
+    WHEEL_BUSY.store(false, Ordering::SeqCst);
     let payload = ShowPayload {
         actions: engine::actions_for(&paths),
         size: engine::total_size(&paths),
@@ -91,10 +117,15 @@ fn actions_for(paths: Vec<String>) -> Slices {
 }
 
 #[tauri::command]
-async fn run_action(id: String, paths: Vec<String>) -> Result<Vec<String>, String> {
+async fn run_action(app: AppHandle, id: String, paths: Vec<String>) -> Result<Vec<String>, String> {
     let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-    tauri::async_runtime::spawn_blocking(move || engine::run(&id, &paths))
-        .await
+    WHEEL_BUSY.store(true, Ordering::SeqCst);
+    let gen = WHEEL_GEN.load(Ordering::SeqCst);
+    let result = tauri::async_runtime::spawn_blocking(move || engine::run(&id, &paths)).await;
+    WHEEL_BUSY.store(false, Ordering::SeqCst);
+    // The wheel shows "Saved" / "Failed" briefly, then must go away even if the page can't hide it.
+    hide_wheel_later(&app, gen, 2500);
+    result
         .map_err(|e| e.to_string())?
         .map(|out| out.iter().map(|p| p.to_string_lossy().into_owned()).collect())
         .map_err(|e| e.to_string())
@@ -183,14 +214,20 @@ fn tray(app: &tauri::App) -> tauri::Result<()> {
     let hint = MenuItem::with_id(app, "hint", "Drag a file and press Shift", false, None::<&str>)?;
     let label = format!("Or select a file and press {}", SHORTCUT.1);
     let shortcut = MenuItem::with_id(app, "shortcut", label, false, None::<&str>)?;
+    let hide = MenuItem::with_id(app, "hide", "Hide wheel", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Ryshift", true, Some("CmdOrCtrl+Q"))?;
-    let menu = Menu::with_items(app, &[&hint, &shortcut, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu = Menu::with_items(app, &[&hint, &shortcut, &PredefinedMenuItem::separator(app)?, &hide, &quit])?;
     let mut builder = TrayIconBuilder::with_id("main")
         .tooltip("Ryshift")
         .menu(&menu)
         .on_menu_event(|app, event| {
             if event.id() == "quit" {
                 app.exit(0);
+            } else if event.id() == "hide" {
+                WHEEL_BUSY.store(false, Ordering::SeqCst);
+                if let Some(win) = app.get_webview_window("wheel") {
+                    let _ = win.hide();
+                }
             }
         });
     if let Some(icon) = app.default_window_icon() {
