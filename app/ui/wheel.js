@@ -12,7 +12,7 @@ const slicesEl = document.getElementById("slices");
 const hubTop = document.getElementById("hub-top");
 const hubBottom = document.getElementById("hub-bottom");
 
-let state = { paths: [], actions: [], size: 0, mode: "drag", wheel: "convert", hot: -1, busy: false };
+let state = { paths: [], actions: [], size: 0, mode: "drag", wheel: "convert", hot: -1, busy: false, fired: false };
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -157,8 +157,10 @@ function shortName(path) {
 }
 
 async function runSlice(i, paths = state.paths) {
+  if (state.fired) return; // the drop and the mouse release can both arrive; run once
   const action = wheelActions()[i];
   if (!action || state.busy || !paths.length) return hide();
+  state.fired = true;
   if (action.panel) {
     try {
       await tauri.core.invoke("open_panel", { panel: action.panel, path: paths[0] });
@@ -195,7 +197,7 @@ function cycleWheel(step = 1) {
 }
 
 tauri.event.listen("wheel:show", ({ payload }) => {
-  state = { ...payload, wheel: "convert", hot: -1, busy: false };
+  state = { ...payload, wheel: "convert", hot: -1, busy: false, fired: false };
   state.wheel = availableWheels()[0] || "convert";
   document.body.classList.toggle("native-glass", !!payload.native_glass);
   render();
@@ -206,8 +208,24 @@ tauri.event.listen("wheel:show", ({ payload }) => {
 
 tauri.event.listen("wheel:cycle", () => cycleWheel());
 
-tauri.event.listen("wheel:mouseup", () => {
-  setTimeout(() => { if (!state.busy) hide(); }, 200);
+function toCss(p) {
+  const scale = state.drop_in_pixels ? window.devicePixelRatio || 1 : 1;
+  return p ? { x: p.x / scale, y: p.y / scale } : null;
+}
+
+tauri.event.listen("wheel:pointer", ({ payload }) => {
+  const pos = toCss(payload);
+  if (pos) setHot(sliceAt(pos.x, pos.y));
+});
+
+tauri.event.listen("wheel:mouseup", ({ payload }) => {
+  const pos = toCss(payload);
+  const i = pos ? sliceAt(pos.x, pos.y) : -1;
+  setTimeout(() => {
+    if (state.fired || state.busy) return;
+    if (i >= 0 && state.paths.length) runSlice(i);
+    else hide();
+  }, 200);
 });
 
 tauri.webview.getCurrentWebview().onDragDropEvent(({ payload }) => {
