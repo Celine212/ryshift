@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Position, WebviewWindow};
 use windows::core::Interface;
 use windows::Win32::Foundation::{HWND, POINT, RECT};
-use windows::Win32::Graphics::Gdi::{CreateEllipticRgn, SetWindowRgn};
+use windows::Win32::Graphics::Gdi::{CreateEllipticRgn, RedrawWindow, SetWindowRgn, RDW_ALLCHILDREN, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, IDispatch, IServiceProvider, CLSCTX_ALL,
     COINIT_APARTMENTTHREADED,
@@ -18,7 +18,7 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::{
     GetAncestor, GetClassNameW, GetCursorPos, GetForegroundWindow, GetSystemMetrics, GetWindowRect, SetWindowPos,
     ShowWindow, WindowFromPoint, GA_ROOT, HWND_TOPMOST, SM_CXDRAG, SM_CYDRAG, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOWNOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, SW_HIDE, SW_SHOWNOACTIVATE,
 };
 
 const CSIDL_DESKTOP: i32 = 0;
@@ -230,6 +230,25 @@ pub fn present(win: &WebviewWindow, top_left: Position, focus: bool) {
             let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         }
     }
+}
+
+/// Hide the wheel without leaving a painted "ghost" of it behind: move it
+/// off-screen, hide it, then ask Windows to repaint whatever was under it.
+pub fn park_and_hide(win: &WebviewWindow) {
+    let Some(hwnd) = hwnd_of(win) else {
+        let _ = win.hide();
+        return;
+    };
+    let mut r = RECT::default();
+    unsafe {
+        let had_rect = GetWindowRect(hwnd, &mut r).is_ok();
+        let _ = SetWindowPos(hwnd, None, -32000, -32000, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        let _ = ShowWindow(hwnd, SW_HIDE);
+        if had_rect {
+            let _ = RedrawWindow(None, Some(&r as *const RECT), None, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        }
+    }
+    let _ = win.hide();
 }
 
 pub fn cursor() -> Position {
